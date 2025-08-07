@@ -1,0 +1,44 @@
+# Binary executable
+*.exe
+*.out
+*.o
+*.a
+*.so
+
+# Dependency files
+vendor/
+
+# Konfigurasi lingkungan
+.env
+.env.local
+.env.*.local
+
+# Go build cache
+*.log
+*.tmp
+/tmp/
+*.swp
+*.swo
+.DS_Store
+*.bak
+
+# Go module cache
+/go/pkg/mod/
+
+/uploads/
+
+# VS Code
+.vscode/
+
+# IntelliJ IDEA / GoLand
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# JetBrains
+*.iml
+
+# MacOS
+.DS_Store
