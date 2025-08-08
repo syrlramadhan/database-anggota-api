@@ -23,7 +23,7 @@ func main() {
 	}
 
 	port := os.Getenv("APP_PORT")
-	fmt.Println("api running on http://localhost:" + port)
+	fmt.Println("api running on port:" + port)
 
 	db, err := config.ConnectToDatabase()
 	if err != nil {
@@ -38,7 +38,9 @@ func main() {
 	memberController := controller.NewMemberController(memberService)
 
 	router.POST("/api/member", memberController.AddMember)
+	router.PUT("/api/member/:id", memberController.UpdateMember)
 	router.POST("/api/member/login", memberController.Login)
+	router.POST("/api/member/token", memberController.LoginToken)
 
 	handler := corsMiddleware(router)
 

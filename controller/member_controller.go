@@ -12,7 +12,9 @@ import (
 
 type MemberController interface {
 	AddMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 }
 
 type memberControllerImpl struct {
@@ -47,4 +49,30 @@ func (m *memberControllerImpl) Login(w http.ResponseWriter, r *http.Request, ps 
 		return
 	}
 	helper.WriteJSONSuccess(w, responseDTO, "login successfully")
+}
+
+// LoginToken implements MemberController.
+func (m *memberControllerImpl) LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	loginRequest := dto.LoginTokenRequest{}
+	util.ReadFromRequestBody(r, &loginRequest)
+
+	responseDTO, code, err := m.MemberService.LoginToken(r.Context(), loginRequest)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+	helper.WriteJSONSuccess(w, responseDTO, "login successfully")
+}
+
+// UpdateMember implements MemberController.
+func (m *memberControllerImpl) UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+
+	responseDTO, code, err := m.MemberService.UpdateMember(r.Context(), r, id)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+
+	helper.WriteJSONSuccess(w, responseDTO, "updated successfully")
 }

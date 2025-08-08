@@ -9,9 +9,12 @@ import (
 
 type MemberRepository interface {
 	AddMember(ctx context.Context, tx *sql.Tx, member model.Member) (model.Member, error)
+	UpdateMember(ctx context.Context, tx *sql.Tx, member model.Member) (model.Member, error)
 	GetJurusanByName(ctx context.Context, tx *sql.Tx, jurusan model.Jurusan, nama_jurusan string) (model.Jurusan, error)
 	GetAngkatanById(ctx context.Context, tx *sql.Tx, angkatan model.Angkatan, id_angkatan string) (model.Angkatan, error)
 	GetMemberByNRA(ctx context.Context, tx *sql.Tx, nra string) (model.Member, error)
+	GetMemberByToken(ctx context.Context, tx *sql.Tx, token string) (model.Member, error)
+	GetMemberById(ctx context.Context, tx *sql.Tx, id string) (model.Member, error)
 }
 
 type memberRepositoryImpl struct {
@@ -26,6 +29,18 @@ func (m memberRepositoryImpl) AddMember(ctx context.Context, tx *sql.Tx, member 
 	queryMember := "INSERT INTO member (id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, email, no_hp, password, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 	_, err := tx.ExecContext(ctx, queryMember, member.IdMember, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.JurusanID, member.TanggalDikukuhkan, member.Email, member.NoHP, member.Password, member.Foto)
+	if err != nil {
+		return member, err
+	}
+
+	return member, nil
+}
+
+// UpdateMember implements MemberRepository.
+func (m *memberRepositoryImpl) UpdateMember(ctx context.Context, tx *sql.Tx, member model.Member) (model.Member, error) {
+	query := "UPDATE member SET nra = ?, nama = ?, angkatan = ?, status_keanggotaan = ?, id_jurusan = ?, tanggal_dikukuhkan = ?, email = ?, no_hp = ?, password = ?, foto = ? WHERE id_member = ?"
+
+	_, err := tx.ExecContext(ctx, query, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.JurusanID, member.TanggalDikukuhkan, member.Email, member.NoHP, member.Password, member.Foto, member.IdMember)
 	if err != nil {
 		return member, err
 	}
@@ -63,6 +78,32 @@ func (m *memberRepositoryImpl) GetMemberByNRA(ctx context.Context, tx *sql.Tx, n
 	query := "SELECT id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, email, no_hp, password, foto, login_token FROM member WHERE nra = ?"
 
 	err := tx.QueryRowContext(ctx, query, nra).Scan(&member.IdMember, &member.NRA, &member.Nama, &member.AngkatanID, &member.StatusKeanggotaan, &member.JurusanID, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken)
+	if err != nil {
+		return model.Member{}, err
+	}
+
+	return member, nil
+}
+
+// GetMemberByToken implements MemberRepository.
+func (m *memberRepositoryImpl) GetMemberByToken(ctx context.Context, tx *sql.Tx, token string) (model.Member, error) {
+	var member model.Member
+	query := "SELECT id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, email, no_hp, password, foto, login_token FROM member WHERE login_token = ?"
+
+	err := tx.QueryRowContext(ctx, query, token).Scan(&member.IdMember, &member.NRA, &member.Nama, &member.AngkatanID, &member.StatusKeanggotaan, &member.JurusanID, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken)
+	if err != nil {
+		return model.Member{}, err
+	}
+
+	return member, nil
+}
+
+// GetMemberById implements MemberRepository.
+func (m *memberRepositoryImpl) GetMemberById(ctx context.Context, tx *sql.Tx, id string) (model.Member, error) {
+	var member model.Member
+	query := "SELECT id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, email, no_hp, password, foto, login_token FROM member WHERE id_member = ?"
+
+	err := tx.QueryRowContext(ctx, query, id).Scan(&member.IdMember, &member.NRA, &member.Nama, &member.AngkatanID, &member.StatusKeanggotaan, &member.JurusanID, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken)
 	if err != nil {
 		return model.Member{}, err
 	}
