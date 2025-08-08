@@ -13,6 +13,8 @@ import (
 type MemberController interface {
 	AddMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	GetAllMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	GetMemberById(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 }
@@ -36,6 +38,43 @@ func (m *memberControllerImpl) AddMember(w http.ResponseWriter, r *http.Request,
 	}
 
 	helper.WriteJSONSuccess(w, responseDTO, "registration successfully")
+}
+
+// UpdateMember implements MemberController.
+func (m *memberControllerImpl) UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+
+	responseDTO, code, err := m.MemberService.UpdateMember(r.Context(), r, id)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+
+	helper.WriteJSONSuccess(w, responseDTO, "updated successfully")
+}
+
+// GetAllMember implements MemberController.
+func (m *memberControllerImpl) GetAllMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	responseDTO, code, err := m.MemberService.GetAllMember(r.Context())
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+
+	helper.WriteJSONSuccess(w, responseDTO, "get all member successfully")
+}
+
+// GetMemberById implements MemberController.
+func (m *memberControllerImpl) GetMemberById(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+	
+	responseDTO, code, err := m.MemberService.GetMemberById(r.Context(), id)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+
+	helper.WriteJSONSuccess(w, responseDTO, "get member successfully")
 }
 
 // Login implements MemberController.
@@ -62,17 +101,4 @@ func (m *memberControllerImpl) LoginToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 	helper.WriteJSONSuccess(w, responseDTO, "login successfully")
-}
-
-// UpdateMember implements MemberController.
-func (m *memberControllerImpl) UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	id := ps.ByName("id")
-
-	responseDTO, code, err := m.MemberService.UpdateMember(r.Context(), r, id)
-	if err != nil {
-		helper.WriteJSONError(w, code, err.Error())
-		return
-	}
-
-	helper.WriteJSONSuccess(w, responseDTO, "updated successfully")
 }

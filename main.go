@@ -38,6 +38,8 @@ func main() {
 	memberController := controller.NewMemberController(memberService)
 
 	router.POST("/api/member", memberController.AddMember)
+	router.GET("/api/member", memberController.GetAllMember)
+	router.GET("/api/member/:id", memberController.GetMemberById)
 	router.PUT("/api/member/:id", memberController.UpdateMember)
 	router.POST("/api/member/login", memberController.Login)
 	router.POST("/api/member/token", memberController.LoginToken)

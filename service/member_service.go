@@ -21,6 +21,8 @@ import (
 type MemberService interface {
 	AddMember(ctx context.Context, r *http.Request) (dto.MemberResponse, int, error)
 	UpdateMember(ctx context.Context, r *http.Request, id string) (dto.MemberResponse, int, error)
+	GetAllMember(ctx context.Context) ([]dto.MemberResponse, int, error)
+	GetMemberById(ctx context.Context, id string) (dto.MemberResponse, int, error)
 	Login(ctx context.Context, loginRequest dto.LoginRequest) (string, int, error)
 	LoginToken(ctx context.Context, loginRequest dto.LoginTokenRequest) (string, int, error)
 }
@@ -371,6 +373,46 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 	}
 
 	return helper.ConvertMemberToResponseDTO(updatedMember), http.StatusOK, nil
+}
+
+// GetAllMember implements MemberService.
+func (m *memberServiceImpl) GetAllMember(ctx context.Context) ([]dto.MemberResponse, int, error) {
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return []dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	members, err := m.MemberRepo.GetAllMember(ctx, tx)
+	if err != nil {
+		return []dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get all member: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return []dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return helper.ConvertMemberToListResDTO(members), http.StatusOK, nil
+}
+
+// GetMemberById implements MemberService.
+func (m *memberServiceImpl) GetMemberById(ctx context.Context, id string) (dto.MemberResponse, int, error) {
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to to get member: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return helper.ConvertMemberToResponseDTO(getMember), http.StatusOK, nil
 }
 
 // Login implements MemberService.

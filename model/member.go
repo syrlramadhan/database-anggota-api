@@ -20,6 +20,9 @@ type Member struct {
 	Password          sql.NullString
 	Foto              sql.NullString
 	LoginToken        sql.NullString
+
+	Angkatan Angkatan
+	Jurusan  Jurusan
 }
 
 type Angkatan struct {
