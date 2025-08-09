@@ -14,8 +14,11 @@ type MemberRepository interface {
 	GetMemberByNRA(ctx context.Context, tx *sql.Tx, nra string) (model.Member, error)
 	GetMemberByToken(ctx context.Context, tx *sql.Tx, token string) (model.Member, error)
 	GetMemberById(ctx context.Context, tx *sql.Tx, id string) (model.Member, error)
+	DeleteMember(ctx context.Context, tx *sql.Tx, member model.Member) error
+
 	GetJurusanByName(ctx context.Context, tx *sql.Tx, jurusan model.Jurusan, nama_jurusan string) (model.Jurusan, error)
 	GetJurusanById(ctx context.Context, tx *sql.Tx, jurusan model.Jurusan, id_jurusan string) (model.Jurusan, error)
+
 	GetAngkatanById(ctx context.Context, tx *sql.Tx, angkatan model.Angkatan, id_angkatan string) (model.Angkatan, error)
 }
 
@@ -63,7 +66,7 @@ func (m *memberRepositoryImpl) GetAllMember(ctx context.Context, tx *sql.Tx) ([]
 	var members []model.Member
 	for rows.Next() {
 		var member model.Member
-		err = rows.Scan(&member.IdMember,&member.NRA,&member.Nama,&member.Angkatan.NamaAngkatan,&member.StatusKeanggotaan,&member.Jurusan.NamaJurusan,&member.TanggalDikukuhkan,&member.Email,&member.NoHP,&member.Password,&member.Foto,)
+		err = rows.Scan(&member.IdMember, &member.NRA, &member.Nama, &member.Angkatan.NamaAngkatan, &member.StatusKeanggotaan, &member.Jurusan.NamaJurusan, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto)
 		if err != nil {
 			return []model.Member{}, err
 		}
@@ -73,7 +76,6 @@ func (m *memberRepositoryImpl) GetAllMember(ctx context.Context, tx *sql.Tx) ([]
 
 	return members, nil
 }
-
 
 // GetMemberByNRA implements MemberRepository.
 func (m *memberRepositoryImpl) GetMemberByNRA(ctx context.Context, tx *sql.Tx, nra string) (model.Member, error) {
@@ -160,6 +162,18 @@ func (m *memberRepositoryImpl) GetMemberById(ctx context.Context, tx *sql.Tx, id
 	}
 
 	return member, nil
+}
+
+// DeleteMember implements MemberRepository.
+func (m *memberRepositoryImpl) DeleteMember(ctx context.Context, tx *sql.Tx, member model.Member) error {
+	query := "DELETE FROM member WHERE id_member = ?"
+
+	_, err := tx.ExecContext(ctx, query, member.IdMember)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // GetJurusan implements MemberRepository.

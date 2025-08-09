@@ -23,6 +23,7 @@ type MemberService interface {
 	UpdateMember(ctx context.Context, r *http.Request, id string) (dto.MemberResponse, int, error)
 	GetAllMember(ctx context.Context) ([]dto.MemberResponse, int, error)
 	GetMemberById(ctx context.Context, id string) (dto.MemberResponse, int, error)
+	DeleteMember(ctx context.Context, id string) (string, int, error)
 	Login(ctx context.Context, loginRequest dto.LoginRequest) (string, int, error)
 	LoginToken(ctx context.Context, loginRequest dto.LoginTokenRequest) (string, int, error)
 }
@@ -413,6 +414,31 @@ func (m *memberServiceImpl) GetMemberById(ctx context.Context, id string) (dto.M
 	}
 
 	return helper.ConvertMemberToResponseDTO(getMember), http.StatusOK, nil
+}
+
+// DeleteMember implements MemberService.
+func (m *memberServiceImpl) DeleteMember(ctx context.Context, id string) (string, int, error) {
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
+	if err != nil {
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
+	}
+
+	err = m.MemberRepo.DeleteMember(ctx, tx, getMember)
+	if err != nil {
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to delete member: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return getMember.IdMember, http.StatusOK, nil
 }
 
 // Login implements MemberService.

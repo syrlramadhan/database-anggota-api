@@ -15,6 +15,7 @@ type MemberController interface {
 	UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	GetAllMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	GetMemberById(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	DeleteMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 }
@@ -67,7 +68,7 @@ func (m *memberControllerImpl) GetAllMember(w http.ResponseWriter, r *http.Reque
 // GetMemberById implements MemberController.
 func (m *memberControllerImpl) GetMemberById(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
-	
+
 	responseDTO, code, err := m.MemberService.GetMemberById(r.Context(), id)
 	if err != nil {
 		helper.WriteJSONError(w, code, err.Error())
@@ -76,6 +77,20 @@ func (m *memberControllerImpl) GetMemberById(w http.ResponseWriter, r *http.Requ
 
 	helper.WriteJSONSuccess(w, responseDTO, "get member successfully")
 }
+
+// DeleteMember implements MemberController.
+func (m *memberControllerImpl) DeleteMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+
+	responseDTO, code, err := m.MemberService.DeleteMember(r.Context(), id)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+
+	helper.WriteJSONSuccess(w, responseDTO, "delete member successfully")
+}
+
 
 // Login implements MemberController.
 func (m *memberControllerImpl) Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {

@@ -41,6 +41,7 @@ func main() {
 	router.GET("/api/member", memberController.GetAllMember)
 	router.GET("/api/member/:id", memberController.GetMemberById)
 	router.PUT("/api/member/:id", memberController.UpdateMember)
+	router.DELETE("/api/member/:id", memberController.DeleteMember)
 	router.POST("/api/member/login", memberController.Login)
 	router.POST("/api/member/token", memberController.LoginToken)
 
