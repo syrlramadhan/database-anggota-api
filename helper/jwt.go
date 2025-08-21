@@ -9,12 +9,13 @@ import (
 )
 
 type Claims struct {
-	NRA  string `json:"nra"`
-	Nama string `json:"nama"`
+	NRA    string `json:"nra"`
+	Nama   string `json:"nama"`
+	Status string `json:"status"`
 	jwt.StandardClaims
 }
 
-func GenerateJWT(nra, nama string) (string, error) {
+func GenerateJWT(nra, nama, status string) (string, error) {
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
@@ -24,8 +25,9 @@ func GenerateJWT(nra, nama string) (string, error) {
 	expirationTime := time.Now().Add(5 * time.Minute)
 
 	claims := &Claims{
-		NRA:  nra,
-		Nama: nama,
+		NRA:    nra,
+		Nama:   nama,
+		Status: status,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},

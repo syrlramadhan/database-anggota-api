@@ -412,8 +412,8 @@ func (m *memberServiceImpl) GetMemberById(ctx context.Context, id string) (dto.M
 	if err := tx.Commit(); err != nil {
 		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
 	}
-
 	return helper.ConvertMemberToResponseDTO(getMember), http.StatusOK, nil
+
 }
 
 // DeleteMember implements MemberService.
@@ -464,7 +464,7 @@ func (m *memberServiceImpl) Login(ctx context.Context, loginRequest dto.LoginReq
 		return "", http.StatusBadRequest, fmt.Errorf("invalid nra or password: %v", err)
 	}
 
-	token, err := helper.GenerateJWT(loginRequest.NRA, member.Nama)
+	token, err := helper.GenerateJWT(loginRequest.NRA, member.Nama, member.StatusKeanggotaan)
 	if err != nil {
 		return "", http.StatusBadRequest, fmt.Errorf("failed to generate token: %v", err)
 	}
@@ -489,7 +489,7 @@ func (m *memberServiceImpl) LoginToken(ctx context.Context, loginRequest dto.Log
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
-	token, err := helper.GenerateJWT(member.NRA.String, member.Nama)
+	token, err := helper.GenerateJWT(member.NRA.String, member.Nama, member.StatusKeanggotaan)
 	if err != nil {
 		return "", http.StatusBadRequest, fmt.Errorf("failed to generate token: %v", err)
 	}
