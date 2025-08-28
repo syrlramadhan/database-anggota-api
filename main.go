@@ -44,6 +44,7 @@ func main() {
 	router.DELETE("/api/member/:id", memberController.DeleteMember)
 	router.POST("/api/member/login", memberController.Login)
 	router.POST("/api/member/token", memberController.LoginToken)
+	router.GET("/api/member/profile", memberController.GetProfile)
 
 	handler := corsMiddleware(router)
 

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +27,7 @@ type MemberService interface {
 	DeleteMember(ctx context.Context, id string) (string, int, error)
 	Login(ctx context.Context, loginRequest dto.LoginRequest) (string, int, error)
 	LoginToken(ctx context.Context, loginRequest dto.LoginTokenRequest) (string, int, error)
+	GetProfile(ctx context.Context, r *http.Request) (dto.ProfileResponse, int, error)
 }
 
 type memberServiceImpl struct {
@@ -495,4 +497,46 @@ func (m *memberServiceImpl) LoginToken(ctx context.Context, loginRequest dto.Log
 	}
 
 	return token, http.StatusOK, nil
+}
+
+// GetProfile implements MemberService.
+func (m *memberServiceImpl) GetProfile(ctx context.Context, r *http.Request) (dto.ProfileResponse, int, error) {
+	// Ambil token dari header Authorization
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return dto.ProfileResponse{}, http.StatusUnauthorized, fmt.Errorf("authorization header is required")
+	}
+
+	// Format: "Bearer <token>"
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return dto.ProfileResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid authorization header format")
+	}
+
+	tokenString := tokenParts[1]
+
+	// Validasi token JWT
+	claims, err := helper.ValidateJWT(tokenString)
+	if err != nil {
+		return dto.ProfileResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid or expired token: %v", err)
+	}
+
+	// Mulai transaksi database
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return dto.ProfileResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Ambil data member berdasarkan NRA dari claims
+	member, err := m.MemberRepo.GetMemberByNRA(ctx, tx, claims.NRA)
+	if err != nil {
+		return dto.ProfileResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member profile: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return dto.ProfileResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return helper.ConvertMemberToProfileResponseDTO(member), http.StatusOK, nil
 }

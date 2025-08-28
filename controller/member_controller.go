@@ -18,6 +18,7 @@ type MemberController interface {
 	DeleteMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	GetProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 }
 
 type memberControllerImpl struct {
@@ -91,7 +92,6 @@ func (m *memberControllerImpl) DeleteMember(w http.ResponseWriter, r *http.Reque
 	helper.WriteJSONSuccess(w, responseDTO, "delete member successfully")
 }
 
-
 // Login implements MemberController.
 func (m *memberControllerImpl) Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	loginRequest := dto.LoginRequest{}
@@ -116,4 +116,14 @@ func (m *memberControllerImpl) LoginToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 	helper.WriteJSONSuccess(w, responseDTO, "login successfully")
+}
+
+// GetProfile implements MemberController.
+func (m *memberControllerImpl) GetProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	responseDTO, code, err := m.MemberService.GetProfile(r.Context(), r)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+	helper.WriteJSONSuccess(w, responseDTO, "get profile successfully")
 }
