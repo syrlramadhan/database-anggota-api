@@ -18,7 +18,9 @@ type MemberController interface {
 	DeleteMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	Login(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
-	GetProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	GetProfile(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
+	SetPassword(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
+	CompleteProfile(w http.ResponseWriter, r *http.Request, _ httprouter.Params)
 }
 
 type memberControllerImpl struct {
@@ -83,13 +85,13 @@ func (m *memberControllerImpl) GetMemberById(w http.ResponseWriter, r *http.Requ
 func (m *memberControllerImpl) DeleteMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
-	responseDTO, code, err := m.MemberService.DeleteMember(r.Context(), id)
+	code, err := m.MemberService.DeleteMember(r.Context(), id)
 	if err != nil {
 		helper.WriteJSONError(w, code, err.Error())
 		return
 	}
 
-	helper.WriteJSONSuccess(w, responseDTO, "delete member successfully")
+	helper.WriteJSONSuccess(w, "Member deleted successfully", "delete member successfully")
 }
 
 // Login implements MemberController.
@@ -107,10 +109,7 @@ func (m *memberControllerImpl) Login(w http.ResponseWriter, r *http.Request, ps 
 
 // LoginToken implements MemberController.
 func (m *memberControllerImpl) LoginToken(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-	loginRequest := dto.LoginTokenRequest{}
-	util.ReadFromRequestBody(r, &loginRequest)
-
-	responseDTO, code, err := m.MemberService.LoginToken(r.Context(), loginRequest)
+	responseDTO, code, err := m.MemberService.LoginToken(r.Context(), r)
 	if err != nil {
 		helper.WriteJSONError(w, code, err.Error())
 		return
@@ -119,11 +118,31 @@ func (m *memberControllerImpl) LoginToken(w http.ResponseWriter, r *http.Request
 }
 
 // GetProfile implements MemberController.
-func (m *memberControllerImpl) GetProfile(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+func (m *memberControllerImpl) GetProfile(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	responseDTO, code, err := m.MemberService.GetProfile(r.Context(), r)
 	if err != nil {
 		helper.WriteJSONError(w, code, err.Error())
 		return
 	}
 	helper.WriteJSONSuccess(w, responseDTO, "get profile successfully")
+}
+
+// SetPassword implements MemberController.
+func (m *memberControllerImpl) SetPassword(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	code, err := m.MemberService.SetPassword(r.Context(), r)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+	helper.WriteJSONSuccess(w, "Password updated successfully", "set password successfully")
+}
+
+// CompleteProfile implements MemberController.
+func (m *memberControllerImpl) CompleteProfile(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	responseDTO, code, err := m.MemberService.CompleteProfile(r.Context(), r)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+	helper.WriteJSONSuccess(w, responseDTO, "complete profile successfully")
 }

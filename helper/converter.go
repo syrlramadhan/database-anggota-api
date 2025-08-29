@@ -36,6 +36,20 @@ func ConvertMemberToProfileResponseDTO(member model.Member) dto.ProfileResponse 
 	}
 }
 
+func ConvertMemberToCreateResponseDTO(member model.Member) dto.MemberCreateResponse {
+	return dto.MemberCreateResponse{
+		IdMember:          member.IdMember,
+		NRA:               member.NRA.String,
+		Nama:              member.Nama,
+		Angkatan:          member.Angkatan.NamaAngkatan,
+		StatusKeanggotaan: member.StatusKeanggotaan,
+		Jurusan:           member.Jurusan.NamaJurusan,
+		TanggalDikukuhkan: member.TanggalDikukuhkan,
+		Foto:              member.Foto.String,
+		LoginToken:        member.LoginToken.String,
+	}
+}
+
 func ConvertMemberToListResDTO(members []model.Member) []dto.MemberResponse {
 	var memberResponse []dto.MemberResponse
 

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,14 +21,16 @@ import (
 )
 
 type MemberService interface {
-	AddMember(ctx context.Context, r *http.Request) (dto.MemberResponse, int, error)
-	UpdateMember(ctx context.Context, r *http.Request, id string) (dto.MemberResponse, int, error)
+	AddMember(ctx context.Context, r *http.Request) (dto.MemberCreateResponse, int, error)
 	GetAllMember(ctx context.Context) ([]dto.MemberResponse, int, error)
-	GetMemberById(ctx context.Context, id string) (dto.MemberResponse, int, error)
-	DeleteMember(ctx context.Context, id string) (string, int, error)
+	GetMemberById(ctx context.Context, memberId string) (dto.MemberResponse, int, error)
+	UpdateMember(ctx context.Context, r *http.Request, memberId string) (dto.MemberResponse, int, error)
+	DeleteMember(ctx context.Context, memberId string) (int, error)
 	Login(ctx context.Context, loginRequest dto.LoginRequest) (string, int, error)
-	LoginToken(ctx context.Context, loginRequest dto.LoginTokenRequest) (string, int, error)
+	LoginToken(ctx context.Context, r *http.Request) (string, int, error)
 	GetProfile(ctx context.Context, r *http.Request) (dto.ProfileResponse, int, error)
+	SetPassword(ctx context.Context, r *http.Request) (int, error)
+	CompleteProfile(ctx context.Context, r *http.Request) (dto.MemberResponse, int, error)
 }
 
 type memberServiceImpl struct {
@@ -43,16 +46,10 @@ func NewMemberService(memberRepo repository.MemberRepository, db *sql.DB) Member
 }
 
 // AddMember implements MemberService.
-func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto.MemberResponse, int, error) {
+func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto.MemberCreateResponse, int, error) {
 	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse form: %v", err)
-	}
-
-	tanggalStr := r.FormValue("tanggal_dikukuhkan")
-	parsedTanggal, err := time.Parse("02-01-2006", tanggalStr)
-	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse date: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse form: %v", err)
 	}
 
 	memberRequest := dto.MemberRequest{
@@ -61,37 +58,38 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
 		Jurusan:           r.FormValue("jurusan"),
-		TanggalDikukuhkan: &util.CustomDate{Time: parsedTanggal},
-		Email:             r.FormValue("email"),
-		NoHP:              r.FormValue("nomor_hp"),
-		Password:          r.FormValue("password"),
 	}
 
+	// Parse tanggal_dikukuhkan if provided (optional)
+	tanggalStr := r.FormValue("tanggal_dikukuhkan")
+	if tanggalStr != "" {
+		parsedTanggal, err := time.Parse("02-01-2006", tanggalStr)
+		if err != nil {
+			return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("invalid date format, use DD-MM-YYYY: %v", err)
+		}
+		memberRequest.TanggalDikukuhkan = &util.CustomDate{Time: parsedTanggal}
+	}
+
+	// Validasi field required
 	if memberRequest.NRA == "" {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("field nra cannot be empty")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field nra cannot be empty")
 	} else if memberRequest.Nama == "" {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("field name cannot be empty")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field name cannot be empty")
 	} else if memberRequest.Angkatan == "" {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("field generation cannot be empty")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field generation cannot be empty")
 	} else if memberRequest.StatusKeanggotaan == "" {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("field membership status cannot be empty")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field membership status cannot be empty")
 	} else if memberRequest.Jurusan == "" {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("the major field cannot be empty")
-	} else if memberRequest.TanggalDikukuhkan.String() == "" {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("field date column cannot be empty")
-	} else if memberRequest.Email != "" && !util.IsValidEmail(memberRequest.Email) {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("invalid email format")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("the major field cannot be empty")
 	} else if memberRequest.NRA != "" && !util.IsValidNRA(memberRequest.NRA) {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("invalid nra format")
-	} else if memberRequest.Password != "" && len(memberRequest.Password) < 6 {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("passwords must be at least 6 digits long")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("invalid nra format")
 	}
 
 	file, header, err := r.FormFile("foto")
 	if file == nil {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("the file cannot be empty")
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("the file cannot be empty")
 	} else if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to add file")
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to add file")
 	}
 	defer file.Close()
 
@@ -105,20 +103,20 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 	filePath := filepath.Join(uploadDir, fileName)
 	out, err := os.Create(filePath)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create file: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create file: %v", err)
 	}
 	defer out.Close()
 
 	_, err = io.Copy(out, file)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to copy file: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to copy file: %v", err)
 	}
 
 	memberRequest.Foto = fileName
 
 	tx, err := m.DB.Begin()
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
 	}
 	defer tx.Commit()
 
@@ -127,12 +125,13 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 
 	get_jurusan, err := m.MemberRepo.GetJurusanByName(ctx, tx, jurusan, memberRequest.Jurusan)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get major: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get major: %v", err)
 	}
 
-	hassedPass, err := helper.HashPassword(memberRequest.Password)
+	// Generate random token for first-time login
+	randomToken, err := helper.GenerateRandomToken(32) // 64 character hex string
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to hash password: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to generate token: %v", err)
 	}
 
 	member := model.Member{
@@ -143,26 +142,24 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 		StatusKeanggotaan: memberRequest.StatusKeanggotaan,
 		JurusanID:         sql.NullString{String: get_jurusan.IdJurusan, Valid: true},
 		TanggalDikukuhkan: memberRequest.TanggalDikukuhkan,
-		Email:             sql.NullString{String: memberRequest.Email, Valid: true},
-		NoHP:              sql.NullString{String: memberRequest.NoHP, Valid: true},
-		Password:          sql.NullString{String: hassedPass, Valid: true},
 		Foto:              sql.NullString{String: memberRequest.Foto, Valid: true},
+		LoginToken:        sql.NullString{String: randomToken, Valid: true},
 	}
 
 	addMember, err := m.MemberRepo.AddMember(ctx, tx, member)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to add member: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to add member: %v", err)
 	}
 
 	get_angkatan, err := m.MemberRepo.GetAngkatanById(ctx, tx, angkatan, memberRequest.Angkatan)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get the draft: %v", err)
+		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get the draft: %v", err)
 	}
 
 	addMember.AngkatanID = get_angkatan.NamaAngkatan
 	addMember.JurusanID = sql.NullString{String: memberRequest.Jurusan, Valid: true}
 
-	return helper.ConvertMemberToResponseDTO(addMember), http.StatusOK, nil
+	return helper.ConvertMemberToCreateResponseDTO(addMember), http.StatusOK, nil
 }
 
 // UpdateMember implements MemberService.
@@ -180,9 +177,6 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
 		Jurusan:           r.FormValue("jurusan"),
-		Email:             r.FormValue("email"),
-		NoHP:              r.FormValue("nomor_hp"),
-		Password:          r.FormValue("password"),
 	}
 
 	if tanggalStr != "" {
@@ -280,14 +274,8 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 	}
 
 	// Validasi
-	if memberRequest.Email != "" && !util.IsValidEmail(memberRequest.Email) {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("invalid email format")
-	}
 	if memberRequest.NRA != "" && !util.IsValidNRA(memberRequest.NRA) {
 		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("invalid NRA format")
-	}
-	if memberRequest.Password != "" && len(memberRequest.Password) < 6 {
-		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("password must be at least 6 characters")
 	}
 
 	// Jurusan
@@ -305,15 +293,6 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 		getAngkatan, err = m.MemberRepo.GetAngkatanById(ctx, tx, model.Angkatan{}, memberRequest.Angkatan)
 		if err != nil {
 			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get angkatan: %v", err)
-		}
-	}
-
-	// Hash password jika ada yang baru
-	hassedPass := getMember.Password.String
-	if memberRequest.Password != "" {
-		hassedPass, err = helper.HashPassword(memberRequest.Password)
-		if err != nil {
-			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to hash password: %v", err)
 		}
 	}
 
@@ -341,9 +320,9 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 			}
 			return getMember.TanggalDikukuhkan
 		}(),
-		Email:    helper.ChooseNullString(memberRequest.Email, getMember.Email),
-		NoHP:     helper.ChooseNullString(memberRequest.NoHP, getMember.NoHP),
-		Password: sql.NullString{String: hassedPass, Valid: true},
+		Email:    getMember.Email,
+		NoHP:     getMember.NoHP,
+		Password: getMember.Password,
 		Foto: func() sql.NullString {
 			if memberRequest.Foto != "" {
 				return sql.NullString{String: memberRequest.Foto, Valid: true}
@@ -419,28 +398,28 @@ func (m *memberServiceImpl) GetMemberById(ctx context.Context, id string) (dto.M
 }
 
 // DeleteMember implements MemberService.
-func (m *memberServiceImpl) DeleteMember(ctx context.Context, id string) (string, int, error) {
+func (m *memberServiceImpl) DeleteMember(ctx context.Context, id string) (int, error) {
 	tx, err := m.DB.Begin()
 	if err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+		return http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
 	}
 	defer tx.Rollback()
 
 	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
 	if err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
+		return http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
 	err = m.MemberRepo.DeleteMember(ctx, tx, getMember)
 	if err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("failed to delete member: %v", err)
+		return http.StatusInternalServerError, fmt.Errorf("failed to delete member: %v", err)
 	}
 
 	if err := tx.Commit(); err != nil {
-		return "", http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+		return http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
 	}
 
-	return getMember.IdMember, http.StatusOK, nil
+	return http.StatusOK, nil
 }
 
 // Login implements MemberService.
@@ -475,12 +454,19 @@ func (m *memberServiceImpl) Login(ctx context.Context, loginRequest dto.LoginReq
 }
 
 // LoginToken implements MemberService.
-func (m *memberServiceImpl) LoginToken(ctx context.Context, loginRequest dto.LoginTokenRequest) (string, int, error) {
+func (m *memberServiceImpl) LoginToken(ctx context.Context, r *http.Request) (string, int, error) {
+	// Parse request body JSON
+	var loginRequest dto.LoginTokenRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&loginRequest); err != nil {
+		return "", http.StatusBadRequest, fmt.Errorf("invalid JSON format: %v", err)
+	}
+
 	tx, err := m.DB.Begin()
 	if err != nil {
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
 	}
-	defer tx.Commit()
+	defer tx.Rollback()
 
 	if loginRequest.Token == "" {
 		return "", http.StatusBadRequest, fmt.Errorf("field token cannot be empty")
@@ -491,12 +477,23 @@ func (m *memberServiceImpl) LoginToken(ctx context.Context, loginRequest dto.Log
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
-	token, err := helper.GenerateJWT(member.NRA.String, member.Nama, member.StatusKeanggotaan)
+	// Generate JWT token
+	jwtToken, err := helper.GenerateJWT(member.NRA.String, member.Nama, member.StatusKeanggotaan)
 	if err != nil {
 		return "", http.StatusBadRequest, fmt.Errorf("failed to generate token: %v", err)
 	}
 
-	return token, http.StatusOK, nil
+	// Hapus token dari database setelah berhasil login (token sekali pakai)
+	err = m.MemberRepo.UpdateMemberToken(ctx, tx, member.IdMember, "")
+	if err != nil {
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to clear login token: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return jwtToken, http.StatusOK, nil
 }
 
 // GetProfile implements MemberService.
@@ -539,4 +536,197 @@ func (m *memberServiceImpl) GetProfile(ctx context.Context, r *http.Request) (dt
 	}
 
 	return helper.ConvertMemberToProfileResponseDTO(member), http.StatusOK, nil
+}
+
+// SetPassword implements MemberService.
+func (m *memberServiceImpl) SetPassword(ctx context.Context, r *http.Request) (int, error) {
+	// Ambil token dari header Authorization
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return http.StatusUnauthorized, fmt.Errorf("authorization header is required")
+	}
+
+	// Format: "Bearer <token>"
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return http.StatusUnauthorized, fmt.Errorf("invalid authorization header format")
+	}
+
+	tokenString := tokenParts[1]
+
+	// Validasi token JWT
+	claims, err := helper.ValidateJWT(tokenString)
+	if err != nil {
+		return http.StatusUnauthorized, fmt.Errorf("invalid or expired token: %v", err)
+	}
+
+	// Parse request body JSON
+	var request dto.SetPasswordRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&request); err != nil {
+		return http.StatusBadRequest, fmt.Errorf("invalid JSON format: %v", err)
+	}
+
+	// Validasi input
+	if request.Password == "" {
+		return http.StatusBadRequest, fmt.Errorf("password is required")
+	}
+
+	// Hash password
+	hashedPassword, err := helper.HashPassword(request.Password)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to hash password: %v", err)
+	}
+
+	// Mulai transaksi database
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Ambil data member berdasarkan NRA dari claims untuk mendapatkan ID
+	member, err := m.MemberRepo.GetMemberByNRA(ctx, tx, claims.NRA)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
+	}
+
+	// Update password
+	err = m.MemberRepo.UpdateMemberPassword(ctx, tx, member.IdMember, hashedPassword)
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to update password: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return http.StatusOK, nil
+}
+
+// CompleteProfile implements MemberService.
+func (m *memberServiceImpl) CompleteProfile(ctx context.Context, r *http.Request) (dto.MemberResponse, int, error) {
+	// Ambil token dari header Authorization
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return dto.MemberResponse{}, http.StatusUnauthorized, fmt.Errorf("authorization header is required")
+	}
+
+	// Format: "Bearer <token>"
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return dto.MemberResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid authorization header format")
+	}
+
+	tokenString := tokenParts[1]
+
+	// Validasi token JWT
+	claims, err := helper.ValidateJWT(tokenString)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid or expired token: %v", err)
+	}
+
+	// Parse multipart form data
+	err = r.ParseMultipartForm(10 << 20) // 10 MB limit
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("failed to parse multipart form: %v", err)
+	}
+
+	// Ambil data dari form
+	tanggalStr := r.FormValue("tanggal_dikukuhkan")
+	request := dto.CompleteProfileRequest{
+		Email:       r.FormValue("email"),
+		NoHP:        r.FormValue("nomor_hp"),
+		NamaLengkap: r.FormValue("nama"),
+	}
+
+	// Parse tanggal dikukuhkan
+	if tanggalStr != "" {
+		parsedTanggal, err := time.Parse("02-01-2006", tanggalStr)
+		if err != nil {
+			return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("invalid date format, use dd-mm-yyyy: %v", err)
+		}
+		request.TanggalDikukuhkan = &util.CustomDate{Time: parsedTanggal}
+	}
+
+	// Validasi input
+	if request.Email == "" || request.NoHP == "" {
+		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("email and nomor_hp are required")
+	}
+
+	if request.TanggalDikukuhkan == nil {
+		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("tanggal_dikukuhkan is required")
+	}
+
+	if request.NamaLengkap == "" {
+		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("nama is required")
+	}
+
+	// Handle file upload
+	file, header, err := r.FormFile("foto")
+	if file == nil {
+		return dto.MemberResponse{}, http.StatusBadRequest, fmt.Errorf("foto file is required")
+	}
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get foto file: %v", err)
+	}
+	defer file.Close()
+
+	// Generate filename menggunakan NRA dan nama lengkap
+	fileName := fmt.Sprintf("%s_%s%s", claims.NRA, strings.ReplaceAll(request.NamaLengkap, " ", "_"), filepath.Ext(header.Filename))
+
+	// Buat folder ./uploads jika belum ada
+	uploadDir := "./uploads"
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		if err := os.Mkdir(uploadDir, os.ModePerm); err != nil {
+			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create upload dir: %v", err)
+		}
+	}
+
+	// Simpan file
+	filePath := filepath.Join(uploadDir, fileName)
+	out, err := os.Create(filePath)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create file: %v", err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to save file: %v", err)
+	}
+
+	// Set foto filename ke request
+	request.Foto = fileName
+
+	// Mulai transaksi database
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Ambil data member berdasarkan NRA dari claims untuk mendapatkan ID
+	member, err := m.MemberRepo.GetMemberByNRA(ctx, tx, claims.NRA)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
+	}
+
+	// Update profile (email, nomor HP, nama lengkap, foto, dan tanggal dikukuhkan)
+	err = m.MemberRepo.UpdateMemberProfile(ctx, tx, member.IdMember, request.Email, request.NoHP, request.NamaLengkap, request.Foto, request.TanggalDikukuhkan)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to update profile: %v", err)
+	}
+
+	// Ambil data member yang sudah diupdate
+	updatedMember, err := m.MemberRepo.GetMemberById(ctx, tx, member.IdMember)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get updated member: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return helper.ConvertMemberToResponseDTO(updatedMember), http.StatusOK, nil
 }

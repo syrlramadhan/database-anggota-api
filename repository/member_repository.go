@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/syrlramadhan/database-anggota-api/model"
+	"github.com/syrlramadhan/database-anggota-api/util"
 )
 
 type MemberRepository interface {
@@ -15,6 +16,9 @@ type MemberRepository interface {
 	GetMemberByToken(ctx context.Context, tx *sql.Tx, token string) (model.Member, error)
 	GetMemberById(ctx context.Context, tx *sql.Tx, id string) (model.Member, error)
 	DeleteMember(ctx context.Context, tx *sql.Tx, member model.Member) error
+	UpdateMemberToken(ctx context.Context, tx *sql.Tx, memberId, token string) error
+	UpdateMemberPassword(ctx context.Context, tx *sql.Tx, memberId, password string) error
+	UpdateMemberProfile(ctx context.Context, tx *sql.Tx, memberId, email, noHP, namaLengkap, foto string, tanggalDikukuhkan *util.CustomDate) error
 
 	GetJurusanByName(ctx context.Context, tx *sql.Tx, jurusan model.Jurusan, nama_jurusan string) (model.Jurusan, error)
 	GetJurusanById(ctx context.Context, tx *sql.Tx, jurusan model.Jurusan, id_jurusan string) (model.Jurusan, error)
@@ -31,9 +35,9 @@ func NewMemberRepository() MemberRepository {
 
 // AddMember implements MemberRepository.
 func (m memberRepositoryImpl) AddMember(ctx context.Context, tx *sql.Tx, member model.Member) (model.Member, error) {
-	queryMember := "INSERT INTO member (id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, email, no_hp, password, foto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	queryMember := "INSERT INTO member (id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, foto, login_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-	_, err := tx.ExecContext(ctx, queryMember, member.IdMember, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.JurusanID, member.TanggalDikukuhkan, member.Email, member.NoHP, member.Password, member.Foto)
+	_, err := tx.ExecContext(ctx, queryMember, member.IdMember, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.JurusanID, member.TanggalDikukuhkan, member.Foto, member.LoginToken)
 	if err != nil {
 		return member, err
 	}
@@ -210,4 +214,32 @@ func (m *memberRepositoryImpl) GetAngkatanById(ctx context.Context, tx *sql.Tx, 
 	}
 
 	return angkatan, nil
+}
+
+// UpdateMemberToken implements MemberRepository.
+func (repository *memberRepositoryImpl) UpdateMemberToken(ctx context.Context, tx *sql.Tx, memberId, token string) error {
+	SQL := "UPDATE member SET login_token = ? WHERE id_member = ?"
+	_, err := tx.ExecContext(ctx, SQL, sql.NullString{String: token, Valid: token != ""}, memberId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (repository *memberRepositoryImpl) UpdateMemberPassword(ctx context.Context, tx *sql.Tx, memberId, password string) error {
+	SQL := "UPDATE member SET password = ? WHERE id_member = ?"
+	_, err := tx.ExecContext(ctx, SQL, password, memberId)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (repository *memberRepositoryImpl) UpdateMemberProfile(ctx context.Context, tx *sql.Tx, memberId, email, noHP, namaLengkap, foto string, tanggalDikukuhkan *util.CustomDate) error {
+	SQL := "UPDATE member SET email = ?, no_hp = ?, nama = ?, foto = ?, tanggal_dikukuhkan = ? WHERE id_member = ?"
+	_, err := tx.ExecContext(ctx, SQL, email, noHP, namaLengkap, foto, tanggalDikukuhkan, memberId)
+	if err != nil {
+		return err
+	}
+	return nil
 }
