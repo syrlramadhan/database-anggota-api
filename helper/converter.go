@@ -17,6 +17,7 @@ func ConvertMemberToResponseDTO(member model.Member) dto.MemberResponse {
 		Email:             member.Email.String,
 		NoHP:              member.NoHP.String,
 		Password:          member.Password.String,
+		LoginToken:        member.LoginToken.String,
 		Foto:              member.Foto.String,
 	}
 }

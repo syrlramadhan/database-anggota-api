@@ -59,7 +59,7 @@ func (m *memberRepositoryImpl) UpdateMember(ctx context.Context, tx *sql.Tx, mem
 
 // GetAllMember implements MemberRepository.
 func (m *memberRepositoryImpl) GetAllMember(ctx context.Context, tx *sql.Tx) ([]model.Member, error) {
-	query := `SELECT m.id_member, m.nra, m.nama, a.nama_angkatan, m.status_keanggotaan, j.nama_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, m.foto FROM member m LEFT JOIN angkatan a ON m.angkatan = a.id_angkatan LEFT JOIN jurusan j ON m.id_jurusan = j.id_jurusan`
+	query := `SELECT m.id_member, m.nra, m.nama, a.nama_angkatan, m.status_keanggotaan, j.nama_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, m.foto, m.login_token FROM member m LEFT JOIN angkatan a ON m.angkatan = a.id_angkatan LEFT JOIN jurusan j ON m.id_jurusan = j.id_jurusan`
 
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
@@ -70,7 +70,7 @@ func (m *memberRepositoryImpl) GetAllMember(ctx context.Context, tx *sql.Tx) ([]
 	var members []model.Member
 	for rows.Next() {
 		var member model.Member
-		err = rows.Scan(&member.IdMember, &member.NRA, &member.Nama, &member.Angkatan.NamaAngkatan, &member.StatusKeanggotaan, &member.Jurusan.NamaJurusan, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto)
+		err = rows.Scan(&member.IdMember, &member.NRA, &member.Nama, &member.Angkatan.NamaAngkatan, &member.StatusKeanggotaan, &member.Jurusan.NamaJurusan, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken)
 		if err != nil {
 			return []model.Member{}, err
 		}

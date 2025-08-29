@@ -15,6 +15,7 @@ type MemberResponse struct {
 	Email             string           `json:"email"`
 	NoHP              string           `json:"nomor_hp"`
 	Password          string           `json:"password"`
+	LoginToken        string           `json:"login_token"`
 	Foto              string           `json:"foto"`
 }
 
