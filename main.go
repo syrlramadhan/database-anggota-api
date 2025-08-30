@@ -10,16 +10,14 @@ import (
 	"github.com/julienschmidt/httprouter"
 	"github.com/syrlramadhan/database-anggota-api/config"
 	"github.com/syrlramadhan/database-anggota-api/controller"
-	"github.com/syrlramadhan/database-anggota-api/helper"
 	"github.com/syrlramadhan/database-anggota-api/repository"
 	"github.com/syrlramadhan/database-anggota-api/service"
 )
 
 func main() {
-	var writer http.ResponseWriter
 	errEnv := godotenv.Load()
 	if errEnv != nil {
-		helper.WriteJSONError(writer, http.StatusInternalServerError, errEnv.Error())
+		fmt.Printf("Error loading .env file: %v\n", errEnv)
 		return
 	}
 
@@ -28,7 +26,7 @@ func main() {
 
 	db, err := config.ConnectToDatabase()
 	if err != nil {
-		helper.WriteJSONError(writer, http.StatusInternalServerError, err.Error())
+		fmt.Printf("Error connecting to database: %v\n", err)
 		return
 	}
 
@@ -65,7 +63,7 @@ func main() {
 
 	errServer := server.ListenAndServe()
 	if errServer != nil {
-		helper.WriteJSONError(writer, http.StatusInternalServerError, errServer.Error())
+		fmt.Printf("Error starting server: %v\n", errServer)
 		return
 	}
 }

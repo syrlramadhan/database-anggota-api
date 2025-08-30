@@ -24,6 +24,7 @@ type MemberRepository interface {
 	GetJurusanById(ctx context.Context, tx *sql.Tx, jurusan model.Jurusan, id_jurusan string) (model.Jurusan, error)
 
 	GetAngkatanById(ctx context.Context, tx *sql.Tx, angkatan model.Angkatan, id_angkatan string) (model.Angkatan, error)
+	AddAngkatan(ctx context.Context, tx *sql.Tx, angkatan model.Angkatan) (model.Angkatan, error)
 }
 
 type memberRepositoryImpl struct {
@@ -242,4 +243,13 @@ func (repository *memberRepositoryImpl) UpdateMemberProfile(ctx context.Context,
 		return err
 	}
 	return nil
+}
+
+func (repository *memberRepositoryImpl) AddAngkatan(ctx context.Context, tx *sql.Tx, angkatan model.Angkatan) (model.Angkatan, error) {
+	SQL := "INSERT INTO angkatan (id_angkatan, nama_angkatan, created_at, updated_at) VALUES (?, ?, NOW(), NOW())"
+	_, err := tx.ExecContext(ctx, SQL, angkatan.IdAngkatan, angkatan.NamaAngkatan)
+	if err != nil {
+		return model.Angkatan{}, err
+	}
+	return angkatan, nil
 }

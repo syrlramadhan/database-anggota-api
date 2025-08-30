@@ -134,11 +134,32 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to generate token: %v", err)
 	}
 
+	// Cek apakah angkatan sudah ada di database SEBELUM membuat member
+	get_angkatan, err := m.MemberRepo.GetAngkatanById(ctx, tx, angkatan, memberRequest.Angkatan)
+	if err != nil {
+		// Jika angkatan tidak ada, buat angkatan baru
+		if err == sql.ErrNoRows {
+			// Format nama angkatan berdasarkan ID (misal: "015" -> "Angkatan 015")
+			newAngkatan := model.Angkatan{
+				IdAngkatan:   memberRequest.Angkatan,
+				NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
+			}
+			
+			// Tambahkan angkatan baru ke database
+			get_angkatan, err = m.MemberRepo.AddAngkatan(ctx, tx, newAngkatan)
+			if err != nil {
+				return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create new angkatan: %v", err)
+			}
+		} else {
+			return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get angkatan: %v", err)
+		}
+	}
+
 	member := model.Member{
 		IdMember:          uuid.New().String(),
 		NRA:               sql.NullString{String: memberRequest.NRA, Valid: true},
 		Nama:              memberRequest.Nama,
-		AngkatanID:        memberRequest.Angkatan,
+		AngkatanID:        memberRequest.Angkatan, // Gunakan ID angkatan yang sudah divalidasi
 		StatusKeanggotaan: memberRequest.StatusKeanggotaan,
 		JurusanID:         sql.NullString{String: get_jurusan.IdJurusan, Valid: true},
 		TanggalDikukuhkan: memberRequest.TanggalDikukuhkan,
@@ -149,11 +170,6 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 	addMember, err := m.MemberRepo.AddMember(ctx, tx, member)
 	if err != nil {
 		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to add member: %v", err)
-	}
-
-	get_angkatan, err := m.MemberRepo.GetAngkatanById(ctx, tx, angkatan, memberRequest.Angkatan)
-	if err != nil {
-		return dto.MemberCreateResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get the draft: %v", err)
 	}
 
 	addMember.AngkatanID = get_angkatan.NamaAngkatan
@@ -292,7 +308,22 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 	if memberRequest.Angkatan != "" {
 		getAngkatan, err = m.MemberRepo.GetAngkatanById(ctx, tx, model.Angkatan{}, memberRequest.Angkatan)
 		if err != nil {
-			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get angkatan: %v", err)
+			// Jika angkatan tidak ada, buat angkatan baru
+			if err == sql.ErrNoRows {
+				// Format nama angkatan berdasarkan ID (misal: "015" -> "Angkatan 015")
+				newAngkatan := model.Angkatan{
+					IdAngkatan:   memberRequest.Angkatan,
+					NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
+				}
+				
+				// Tambahkan angkatan baru ke database
+				getAngkatan, err = m.MemberRepo.AddAngkatan(ctx, tx, newAngkatan)
+				if err != nil {
+					return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create new angkatan: %v", err)
+				}
+			} else {
+				return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get angkatan: %v", err)
+			}
 		}
 	}
 
