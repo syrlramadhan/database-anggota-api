@@ -36,10 +36,16 @@ func main() {
 	memberService := service.NewMemberService(memberRepo, db)
 	memberController := controller.NewMemberController(memberService)
 
+	// Notification system
+	notificationRepo := repository.NewNotificationRepository()
+	notificationService := service.NewNotificationService(notificationRepo, memberRepo, db)
+	notificationController := controller.NewNotificationController(notificationService)
+
 	// Member CRUD operations
 	router.POST("/api/member", memberController.AddMember)
 	router.GET("/api/member", memberController.GetAllMember)
 	router.PUT("/api/member/:id", memberController.UpdateMember)
+	router.PUT("/api/member/:id/notify", memberController.UpdateMemberWithNotification)
 	router.DELETE("/api/member/:id", memberController.DeleteMember)
 
 	// Authentication
@@ -50,6 +56,16 @@ func main() {
 	router.GET("/api/profile", memberController.GetProfile)
 	router.PUT("/api/profile/password", memberController.SetPassword)
 	router.PUT("/api/profile/complete", memberController.CompleteProfile)
+
+	// Notification routes
+	router.GET("/api/notifications", notificationController.GetNotifications)
+	router.PUT("/api/notifications/:id/read", notificationController.MarkNotificationAsRead)
+	router.GET("/api/notifications/unread/count", notificationController.GetUnreadNotificationCount)
+
+	// Status change routes
+	router.POST("/api/status-change/request", notificationController.CreateStatusChangeRequest)
+	router.PUT("/api/status-change/:id/accept", notificationController.AcceptStatusChangeRequest)
+	router.PUT("/api/status-change/:id/reject", notificationController.RejectStatusChangeRequest)
 
 	// Route untuk mengakses file upload (gambar)
 	router.GET("/uploads/:filename", serveUploadedFile)

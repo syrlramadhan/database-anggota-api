@@ -13,6 +13,7 @@ import (
 type MemberController interface {
 	AddMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	UpdateMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
+	UpdateMemberWithNotification(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	GetAllMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	GetMemberById(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
 	DeleteMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params)
@@ -55,6 +56,25 @@ func (m *memberControllerImpl) UpdateMember(w http.ResponseWriter, r *http.Reque
 	}
 
 	helper.WriteJSONSuccess(w, responseDTO, "updated successfully")
+}
+
+// UpdateMemberWithNotification implements MemberController with notification support.
+func (m *memberControllerImpl) UpdateMemberWithNotification(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id := ps.ByName("id")
+
+	responseDTO, code, err := m.MemberService.UpdateMemberWithNotification(r.Context(), r, id)
+	if err != nil {
+		helper.WriteJSONError(w, code, err.Error())
+		return
+	}
+
+	// Determine message based on whether notification was sent
+	message := "updated successfully"
+	if responseDTO.NotificationSent {
+		message = "status change request sent for approval"
+	}
+
+	helper.WriteJSONSuccess(w, responseDTO, message)
 }
 
 // GetAllMember implements MemberController.

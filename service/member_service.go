@@ -25,6 +25,7 @@ type MemberService interface {
 	GetAllMember(ctx context.Context) ([]dto.MemberResponse, int, error)
 	GetMemberById(ctx context.Context, memberId string) (dto.MemberResponse, int, error)
 	UpdateMember(ctx context.Context, r *http.Request, memberId string) (dto.MemberResponse, int, error)
+	UpdateMemberWithNotification(ctx context.Context, r *http.Request, memberId string) (dto.MemberUpdateWithNotificationResponse, int, error)
 	DeleteMember(ctx context.Context, memberId string) (int, error)
 	Login(ctx context.Context, loginRequest dto.LoginRequest) (string, int, error)
 	LoginToken(ctx context.Context, r *http.Request) (string, int, error)
@@ -144,7 +145,7 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 				IdAngkatan:   memberRequest.Angkatan,
 				NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
 			}
-			
+
 			// Tambahkan angkatan baru ke database
 			get_angkatan, err = m.MemberRepo.AddAngkatan(ctx, tx, newAngkatan)
 			if err != nil {
@@ -315,7 +316,7 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 					IdAngkatan:   memberRequest.Angkatan,
 					NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
 				}
-				
+
 				// Tambahkan angkatan baru ke database
 				getAngkatan, err = m.MemberRepo.AddAngkatan(ctx, tx, newAngkatan)
 				if err != nil {
@@ -386,6 +387,106 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 	}
 
 	return helper.ConvertMemberToResponseDTO(updatedMember), http.StatusOK, nil
+}
+
+// UpdateMemberWithNotification implements MemberService with notification support
+func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r *http.Request, id string) (dto.MemberUpdateWithNotificationResponse, int, error) {
+	// Similar to UpdateMember but with notification logic for status changes
+
+	// Ambil token dari header Authorization untuk mengetahui siapa yang melakukan update
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusUnauthorized, fmt.Errorf("authorization header is required")
+	}
+
+	// Format: "Bearer <token>"
+	tokenParts := strings.Split(authHeader, " ")
+	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid authorization header format")
+	}
+
+	tokenString := tokenParts[1]
+
+	// Validasi token JWT
+	claims, err := helper.ValidateJWT(tokenString)
+	if err != nil {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid or expired token: %v", err)
+	}
+
+	err = r.ParseMultipartForm(10 << 20)
+	if err != nil {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse form: %v", err)
+	}
+
+	// Ambil data dari form
+	memberRequest := dto.MemberRequest{
+		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
+	}
+
+	// Mulai transaksi database
+	tx, err := m.DB.Begin()
+	if err != nil {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+	}
+	defer tx.Rollback()
+
+	// Ambil data member yang akan diupdate
+	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
+	if err != nil {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
+	}
+
+	// Ambil data member yang melakukan update
+	currentUser, err := m.MemberRepo.GetMemberByNRA(ctx, tx, claims.NRA)
+	if err != nil {
+		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get current user: %v", err)
+	}
+
+	// Check if status change needs notification
+	var notificationSent bool
+	var notificationID string
+
+	if memberRequest.StatusKeanggotaan != "" &&
+		memberRequest.StatusKeanggotaan != getMember.StatusKeanggotaan {
+
+		// Jika BPH mengubah status sesama BPH
+		if currentUser.StatusKeanggotaan == "bph" &&
+			getMember.StatusKeanggotaan == "bph" &&
+			currentUser.IdMember != id {
+
+			// Create notification instead of direct update
+			notificationSent = true
+			notificationID = uuid.New().String()
+
+			// Rollback transaction since we don't want to update immediately
+			tx.Rollback()
+
+			// Return response indicating notification was sent instead of direct update
+			return dto.MemberUpdateWithNotificationResponse{
+				Member: dto.MemberResponse{
+					IdMember:          getMember.IdMember,
+					NRA:               getMember.NRA.String,
+					Nama:              getMember.Nama,
+					StatusKeanggotaan: getMember.StatusKeanggotaan,
+					Angkatan:          getMember.AngkatanID,
+				},
+				NotificationSent: true,
+				NotificationID:   notificationID,
+			}, http.StatusOK, nil
+		}
+	}
+
+	// Continue with normal update logic (this is the same as regular UpdateMember)
+	updatedMember, statusCode, err := m.UpdateMember(ctx, r, id)
+	if err != nil {
+		return dto.MemberUpdateWithNotificationResponse{}, statusCode, err
+	}
+
+	return dto.MemberUpdateWithNotificationResponse{
+		Member:           updatedMember,
+		NotificationSent: notificationSent,
+		NotificationID:   notificationID,
+	}, statusCode, nil
 }
 
 // GetAllMember implements MemberService.
