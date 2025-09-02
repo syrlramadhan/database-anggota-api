@@ -215,6 +215,9 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 
 	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return dto.MemberResponse{}, http.StatusNotFound, fmt.Errorf("member not found")
+		}
 		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
@@ -427,13 +430,19 @@ func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r 
 
 	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return dto.MemberResponse{}, http.StatusNotFound, fmt.Errorf("member not found")
+		}
 		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
 	// Get fromMember info untuk validasi
 	fromMember, err := m.MemberRepo.GetMemberById(ctx, tx, fromMemberId)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusUnauthorized, fmt.Errorf("unauthorized: invalid member")
+		if err == sql.ErrNoRows {
+			return dto.MemberResponse{}, http.StatusUnauthorized, fmt.Errorf("unauthorized: invalid member")
+		}
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get from member: %v", err)
 	}
 
 	// Check if status is being changed to DPO
@@ -624,7 +633,10 @@ func (m *memberServiceImpl) GetMemberById(ctx context.Context, id string) (dto.M
 
 	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
 	if err != nil {
-		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to to get member: %v", err)
+		if err == sql.ErrNoRows {
+			return dto.MemberResponse{}, http.StatusNotFound, fmt.Errorf("member not found")
+		}
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -644,6 +656,9 @@ func (m *memberServiceImpl) DeleteMember(ctx context.Context, id string) (int, e
 
 	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return http.StatusNotFound, fmt.Errorf("member not found")
+		}
 		return http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
@@ -675,6 +690,9 @@ func (m *memberServiceImpl) Login(ctx context.Context, loginRequest dto.LoginReq
 
 	member, err := m.MemberRepo.GetMemberByNRA(ctx, tx, loginRequest.NRA)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", http.StatusBadRequest, fmt.Errorf("invalid nra or password")
+		}
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
@@ -711,6 +729,9 @@ func (m *memberServiceImpl) LoginToken(ctx context.Context, r *http.Request) (st
 
 	member, err := m.MemberRepo.GetMemberByToken(ctx, tx, loginRequest.Token)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", http.StatusBadRequest, fmt.Errorf("invalid token")
+		}
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
