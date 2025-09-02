@@ -25,7 +25,7 @@ type MemberService interface {
 	GetAllMember(ctx context.Context) ([]dto.MemberResponse, int, error)
 	GetMemberById(ctx context.Context, memberId string) (dto.MemberResponse, int, error)
 	UpdateMember(ctx context.Context, r *http.Request, memberId string) (dto.MemberResponse, int, error)
-	UpdateMemberWithNotification(ctx context.Context, r *http.Request, memberId string) (dto.MemberUpdateWithNotificationResponse, int, error)
+	UpdateMemberWithNotification(ctx context.Context, r *http.Request, memberId string, fromMemberId string) (dto.MemberResponse, int, error)
 	DeleteMember(ctx context.Context, memberId string) (int, error)
 	Login(ctx context.Context, loginRequest dto.LoginRequest) (string, int, error)
 	LoginToken(ctx context.Context, r *http.Request) (string, int, error)
@@ -191,6 +191,8 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 	memberRequest := dto.MemberRequest{
 		NRA:               r.FormValue("nra"),
 		Nama:              r.FormValue("nama"),
+		NoHP:              r.FormValue("nomor_hp"),
+		Email:             r.FormValue("email"),
 		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
 		Jurusan:           r.FormValue("jurusan"),
@@ -352,8 +354,8 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 			}
 			return getMember.TanggalDikukuhkan
 		}(),
-		Email:    getMember.Email,
-		NoHP:     getMember.NoHP,
+		Email:    helper.ChooseNullString(memberRequest.Email, getMember.Email),
+		NoHP:     helper.ChooseNullString(memberRequest.NoHP, getMember.NoHP),
 		Password: getMember.Password,
 		Foto: func() sql.NullString {
 			if memberRequest.Foto != "" {
@@ -389,104 +391,207 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 	return helper.ConvertMemberToResponseDTO(updatedMember), http.StatusOK, nil
 }
 
-// UpdateMemberWithNotification implements MemberService with notification support
-func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r *http.Request, id string) (dto.MemberUpdateWithNotificationResponse, int, error) {
-	// Similar to UpdateMember but with notification logic for status changes
-
-	// Ambil token dari header Authorization untuk mengetahui siapa yang melakukan update
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusUnauthorized, fmt.Errorf("authorization header is required")
-	}
-
-	// Format: "Bearer <token>"
-	tokenParts := strings.Split(authHeader, " ")
-	if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid authorization header format")
-	}
-
-	tokenString := tokenParts[1]
-
-	// Validasi token JWT
-	claims, err := helper.ValidateJWT(tokenString)
+// UpdateMemberWithNotification implements MemberService with DPO notification.
+func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r *http.Request, id string, fromMemberId string) (dto.MemberResponse, int, error) {
+	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusUnauthorized, fmt.Errorf("invalid or expired token: %v", err)
-	}
-
-	err = r.ParseMultipartForm(10 << 20)
-	if err != nil {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse form: %v", err)
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse form: %v", err)
 	}
 
 	// Ambil data dari form
+	tanggalStr := r.FormValue("tanggal_dikukuhkan")
 	memberRequest := dto.MemberRequest{
+		NRA:               r.FormValue("nra"),
+		Nama:              r.FormValue("nama"),
+		NoHP:              r.FormValue("nomor_hp"),
+		Email:             r.FormValue("email"),
+		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
+		Jurusan:           r.FormValue("jurusan"),
 	}
 
-	// Mulai transaksi database
+	if tanggalStr != "" {
+		parsedTanggal, err := time.Parse("02-01-2006", tanggalStr)
+		if err != nil {
+			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to parse date: %v", err)
+		}
+		memberRequest.TanggalDikukuhkan = &util.CustomDate{Time: parsedTanggal}
+	}
+
+	// Ambil data member dari DB dulu (untuk fallback)
 	tx, err := m.DB.Begin()
 	if err != nil {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to start transaction: %v", err)
 	}
 	defer tx.Rollback()
 
-	// Ambil data member yang akan diupdate
 	getMember, err := m.MemberRepo.GetMemberById(ctx, tx, id)
 	if err != nil {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get member: %v", err)
 	}
 
-	// Ambil data member yang melakukan update
-	currentUser, err := m.MemberRepo.GetMemberByNRA(ctx, tx, claims.NRA)
+	// Get fromMember info untuk validasi
+	fromMember, err := m.MemberRepo.GetMemberById(ctx, tx, fromMemberId)
 	if err != nil {
-		return dto.MemberUpdateWithNotificationResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get current user: %v", err)
+		return dto.MemberResponse{}, http.StatusUnauthorized, fmt.Errorf("unauthorized: invalid member")
 	}
 
-	// Check if status change needs notification
-	var notificationSent bool
-	var notificationID string
+	// Check if status is being changed to DPO
+	oldStatus := getMember.StatusKeanggotaan
+	newStatus := helper.ChooseString(memberRequest.StatusKeanggotaan, getMember.StatusKeanggotaan)
+	isDPOChange := oldStatus != "DPO" && newStatus == "DPO"
 
-	if memberRequest.StatusKeanggotaan != "" &&
-		memberRequest.StatusKeanggotaan != getMember.StatusKeanggotaan {
+	// Validasi: hanya ALB dan BPH yang bisa mengubah status menjadi DPO
+	if isDPOChange && fromMember.StatusKeanggotaan != "ALB" && fromMember.StatusKeanggotaan != "BPH" {
+		return dto.MemberResponse{}, http.StatusForbidden, fmt.Errorf("only ALB and BPH members can change status to DPO")
+	}
 
-		// Jika BPH mengubah status sesama BPH
-		if currentUser.StatusKeanggotaan == "bph" &&
-			getMember.StatusKeanggotaan == "bph" &&
-			currentUser.IdMember != id {
+	// Continue with normal update logic...
+	var fn_nra, fn_nama string
 
-			// Create notification instead of direct update
-			notificationSent = true
-			notificationID = uuid.New().String()
+	if memberRequest.NRA == "" {
+		fn_nra = getMember.NRA.String
+	} else {
+		fn_nra = memberRequest.NRA
+	}
 
-			// Rollback transaction since we don't want to update immediately
-			tx.Rollback()
+	if memberRequest.Nama == "" {
+		fn_nama = getMember.Nama
+	} else {
+		fn_nama = memberRequest.Nama
+	}
 
-			// Return response indicating notification was sent instead of direct update
-			return dto.MemberUpdateWithNotificationResponse{
-				Member: dto.MemberResponse{
-					IdMember:          getMember.IdMember,
-					NRA:               getMember.NRA.String,
-					Nama:              getMember.Nama,
-					StatusKeanggotaan: getMember.StatusKeanggotaan,
-					Angkatan:          getMember.AngkatanID,
-				},
-				NotificationSent: true,
-				NotificationID:   notificationID,
-			}, http.StatusOK, nil
+	// Handle optional foto
+	file, header, err := r.FormFile("foto")
+
+	if err == nil && header != nil {
+		defer file.Close()
+
+		// Buat nama file baru berdasarkan NRA dan Nama baru
+		fileName := fmt.Sprintf("%s_%s%s", fn_nra, fn_nama, filepath.Ext(header.Filename))
+
+		// Buat folder ./uploads jika belum ada
+		uploadDir := "./uploads"
+		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+			if err := os.Mkdir(uploadDir, os.ModePerm); err != nil {
+				return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create upload dir: %v", err)
+			}
+		}
+
+		// Hapus file lama jika ada
+		if getMember.Foto.Valid && getMember.Foto.String != "" {
+			oldFilePath := filepath.Join(uploadDir, getMember.Foto.String)
+			if _, err := os.Stat(oldFilePath); err == nil {
+				os.Remove(oldFilePath)
+			}
+		}
+
+		// Buat file baru
+		filePath := filepath.Join(uploadDir, fileName)
+		newFile, err := os.Create(filePath)
+		if err != nil {
+			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create file: %v", err)
+		}
+		defer newFile.Close()
+
+		// Copy isi file
+		if _, err := io.Copy(newFile, file); err != nil {
+			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to copy file: %v", err)
+		}
+
+		memberRequest.Foto = fileName
+	}
+
+	// Jurusan
+	var getJurusan model.Jurusan
+	if memberRequest.Jurusan != "" {
+		getJurusan, err = m.MemberRepo.GetJurusanByName(ctx, tx, model.Jurusan{}, memberRequest.Jurusan)
+		if err != nil {
+			return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get jurusan: %v", err)
 		}
 	}
 
-	// Continue with normal update logic (this is the same as regular UpdateMember)
-	updatedMember, statusCode, err := m.UpdateMember(ctx, r, id)
-	if err != nil {
-		return dto.MemberUpdateWithNotificationResponse{}, statusCode, err
+	// Angkatan
+	var getAngkatan model.Angkatan
+	if memberRequest.Angkatan != "" {
+		getAngkatan, err = m.MemberRepo.GetAngkatanById(ctx, tx, model.Angkatan{}, memberRequest.Angkatan)
+		if err != nil {
+			// Jika angkatan tidak ada, buat angkatan baru
+			if err == sql.ErrNoRows {
+				newAngkatan := model.Angkatan{
+					IdAngkatan:   memberRequest.Angkatan,
+					NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
+				}
+
+				getAngkatan, err = m.MemberRepo.AddAngkatan(ctx, tx, newAngkatan)
+				if err != nil {
+					return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to create new angkatan: %v", err)
+				}
+			} else {
+				return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get angkatan: %v", err)
+			}
+		}
 	}
 
-	return dto.MemberUpdateWithNotificationResponse{
-		Member:           updatedMember,
-		NotificationSent: notificationSent,
-		NotificationID:   notificationID,
-	}, statusCode, nil
+	// Bangun object final member
+	member := model.Member{
+		IdMember: getMember.IdMember,
+		NRA:      helper.ChooseNullString(memberRequest.NRA, getMember.NRA),
+		Nama:     helper.ChooseString(memberRequest.Nama, getMember.Nama),
+		AngkatanID: func() string {
+			if memberRequest.Angkatan != "" {
+				return memberRequest.Angkatan
+			}
+			return getMember.AngkatanID
+		}(),
+		StatusKeanggotaan: newStatus,
+		JurusanID: func() sql.NullString {
+			if memberRequest.Jurusan != "" {
+				return sql.NullString{String: getJurusan.IdJurusan, Valid: true}
+			}
+			return getMember.JurusanID
+		}(),
+		TanggalDikukuhkan: func() *util.CustomDate {
+			if memberRequest.TanggalDikukuhkan != nil {
+				return memberRequest.TanggalDikukuhkan
+			}
+			return getMember.TanggalDikukuhkan
+		}(),
+		Email:    helper.ChooseNullString(memberRequest.Email, getMember.Email),
+		NoHP:     helper.ChooseNullString(memberRequest.NoHP, getMember.NoHP),
+		Password: getMember.Password,
+		Foto: func() sql.NullString {
+			if memberRequest.Foto != "" {
+				return sql.NullString{String: memberRequest.Foto, Valid: true}
+			}
+			return getMember.Foto
+		}(),
+	}
+
+	updatedMember, err := m.MemberRepo.UpdateMember(ctx, tx, member)
+	if err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to update member: %v", err)
+	}
+
+	// Inject nama angkatan dan jurusan ke response
+	updatedMember.AngkatanID = func() string {
+		if memberRequest.Angkatan != "" {
+			return getAngkatan.NamaAngkatan
+		}
+		return getMember.AngkatanID
+	}()
+	updatedMember.JurusanID = func() sql.NullString {
+		if memberRequest.Jurusan != "" {
+			return sql.NullString{String: getJurusan.NamaJurusan}
+		}
+		return sql.NullString{String: getMember.JurusanID.String}
+	}()
+
+	if err := tx.Commit(); err != nil {
+		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to commit transaction: %v", err)
+	}
+
+	return helper.ConvertMemberToResponseDTO(updatedMember), http.StatusOK, nil
 }
 
 // GetAllMember implements MemberService.

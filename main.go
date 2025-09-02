@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/joho/godotenv"
 	"github.com/julienschmidt/httprouter"
@@ -70,7 +71,7 @@ func main() {
 	// Route untuk mengakses file upload (gambar)
 	router.GET("/uploads/:filename", serveUploadedFile)
 
-	handler := corsMiddleware(router)
+	handler := CorsMiddleware(router)
 
 	server := http.Server{
 		Addr:    ":" + port,
@@ -105,12 +106,29 @@ func serveUploadedFile(w http.ResponseWriter, r *http.Request, ps httprouter.Par
 	http.ServeFile(w, r, filePath)
 }
 
-func corsMiddleware(next http.Handler) http.Handler {
+func CorsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		origin := r.Header.Get("Origin")
+		allowedOrigins := strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",")
+
+		originAllowed := false
+		for _, allowed := range allowedOrigins {
+			if origin == allowed {
+				w.Header().Set("Access-Control-Allow-Origin", origin)
+				originAllowed = true
+				break
+			}
+		}
+
+		if !originAllowed {
+			http.Error(w, "Origin not allowed", http.StatusForbidden)
+			return
+		}
+
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, ngrok-skip-browser-warning, x-member-id")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)

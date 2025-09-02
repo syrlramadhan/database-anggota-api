@@ -7,6 +7,8 @@ import (
 type MemberRequest struct {
 	NRA               string           `json:"nra"`
 	Nama              string           `json:"nama"`
+	NoHP              string           `json:"nomor_hp"`
+	Email             string           `json:"email"`
 	Angkatan          string           `json:"angkatan"`
 	StatusKeanggotaan string           `json:"status_keanggotaan"`
 	Jurusan           string           `json:"jurusan"`

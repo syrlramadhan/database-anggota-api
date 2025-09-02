@@ -58,23 +58,24 @@ func (m *memberControllerImpl) UpdateMember(w http.ResponseWriter, r *http.Reque
 	helper.WriteJSONSuccess(w, responseDTO, "updated successfully")
 }
 
-// UpdateMemberWithNotification implements MemberController with notification support.
+// UpdateMemberWithNotification implements MemberController with DPO notification capability.
 func (m *memberControllerImpl) UpdateMemberWithNotification(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	id := ps.ByName("id")
 
-	responseDTO, code, err := m.MemberService.UpdateMemberWithNotification(r.Context(), r, id)
+	// Get fromMemberId from JWT token or header
+	fromMemberId := r.Header.Get("X-Member-ID")
+	if fromMemberId == "" {
+		helper.WriteJSONError(w, http.StatusUnauthorized, "Member ID required in header")
+		return
+	}
+
+	responseDTO, code, err := m.MemberService.UpdateMemberWithNotification(r.Context(), r, id, fromMemberId)
 	if err != nil {
 		helper.WriteJSONError(w, code, err.Error())
 		return
 	}
 
-	// Determine message based on whether notification was sent
-	message := "updated successfully"
-	if responseDTO.NotificationSent {
-		message = "status change request sent for approval"
-	}
-
-	helper.WriteJSONSuccess(w, responseDTO, message)
+	helper.WriteJSONSuccess(w, responseDTO, "updated successfully")
 }
 
 // GetAllMember implements MemberController.
