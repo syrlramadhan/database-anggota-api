@@ -58,6 +58,7 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 		Nama:              r.FormValue("nama"),
 		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
+		Role:              r.FormValue("role"),
 		Jurusan:           r.FormValue("jurusan"),
 	}
 
@@ -80,6 +81,8 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field generation cannot be empty")
 	} else if memberRequest.StatusKeanggotaan == "" {
 		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field membership status cannot be empty")
+	} else if memberRequest.Role == "" {
+		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("field role cannot be empty")
 	} else if memberRequest.Jurusan == "" {
 		return dto.MemberCreateResponse{}, http.StatusBadRequest, fmt.Errorf("the major field cannot be empty")
 	} else if memberRequest.NRA != "" && !util.IsValidNRA(memberRequest.NRA) {
@@ -143,7 +146,7 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 			// Format nama angkatan berdasarkan ID (misal: "015" -> "Angkatan 015")
 			newAngkatan := model.Angkatan{
 				IdAngkatan:   memberRequest.Angkatan,
-				NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
+				NamaAngkatan: memberRequest.Angkatan,
 			}
 
 			// Tambahkan angkatan baru ke database
@@ -162,6 +165,7 @@ func (m *memberServiceImpl) AddMember(ctx context.Context, r *http.Request) (dto
 		Nama:              memberRequest.Nama,
 		AngkatanID:        memberRequest.Angkatan, // Gunakan ID angkatan yang sudah divalidasi
 		StatusKeanggotaan: memberRequest.StatusKeanggotaan,
+		Role:              memberRequest.Role,
 		JurusanID:         sql.NullString{String: get_jurusan.IdJurusan, Valid: true},
 		TanggalDikukuhkan: memberRequest.TanggalDikukuhkan,
 		Foto:              sql.NullString{String: memberRequest.Foto, Valid: true},
@@ -195,6 +199,7 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 		Email:             r.FormValue("email"),
 		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
+		Role:              r.FormValue("role"),
 		Jurusan:           r.FormValue("jurusan"),
 	}
 
@@ -319,7 +324,7 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 				// Format nama angkatan berdasarkan ID (misal: "015" -> "Angkatan 015")
 				newAngkatan := model.Angkatan{
 					IdAngkatan:   memberRequest.Angkatan,
-					NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
+					NamaAngkatan: memberRequest.Angkatan,
 				}
 
 				// Tambahkan angkatan baru ke database
@@ -345,6 +350,7 @@ func (m *memberServiceImpl) UpdateMember(ctx context.Context, r *http.Request, i
 			return getMember.AngkatanID
 		}(),
 		StatusKeanggotaan: helper.ChooseString(memberRequest.StatusKeanggotaan, getMember.StatusKeanggotaan),
+		Role:              helper.ChooseString(memberRequest.Role, getMember.Role),
 		JurusanID: func() sql.NullString {
 			if memberRequest.Jurusan != "" {
 				return sql.NullString{String: getJurusan.IdJurusan, Valid: true}
@@ -410,6 +416,7 @@ func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r 
 		Email:             r.FormValue("email"),
 		Angkatan:          r.FormValue("angkatan"),
 		StatusKeanggotaan: r.FormValue("status_keanggotaan"),
+		Role:              r.FormValue("role"),
 		Jurusan:           r.FormValue("jurusan"),
 	}
 
@@ -445,14 +452,14 @@ func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r 
 		return dto.MemberResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get from member: %v", err)
 	}
 
-	// Check if status is being changed to DPO
-	oldStatus := getMember.StatusKeanggotaan
-	newStatus := helper.ChooseString(memberRequest.StatusKeanggotaan, getMember.StatusKeanggotaan)
-	isDPOChange := oldStatus != "DPO" && newStatus == "DPO"
+	// Check if role is being changed to DPO
+	oldRole := getMember.Role
+	newRole := helper.ChooseString(memberRequest.Role, getMember.Role)
+	isDPOChange := oldRole != "dpo" && newRole == "dpo"
 
-	// Validasi: hanya ALB dan BPH yang bisa mengubah status menjadi DPO
-	if isDPOChange && fromMember.StatusKeanggotaan != "ALB" && fromMember.StatusKeanggotaan != "BPH" {
-		return dto.MemberResponse{}, http.StatusForbidden, fmt.Errorf("only ALB and BPH members can change status to DPO")
+	// Validasi: hanya ALB dan BPH yang bisa mengubah role menjadi DPO
+	if isDPOChange && fromMember.Role != "alb" && fromMember.Role != "bph" {
+		return dto.MemberResponse{}, http.StatusForbidden, fmt.Errorf("only ALB and BPH members can change role to DPO")
 	}
 
 	// Continue with normal update logic...
@@ -529,7 +536,7 @@ func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r 
 			if err == sql.ErrNoRows {
 				newAngkatan := model.Angkatan{
 					IdAngkatan:   memberRequest.Angkatan,
-					NamaAngkatan: fmt.Sprintf("Angkatan %s", memberRequest.Angkatan),
+					NamaAngkatan: memberRequest.Angkatan,
 				}
 
 				getAngkatan, err = m.MemberRepo.AddAngkatan(ctx, tx, newAngkatan)
@@ -553,7 +560,8 @@ func (m *memberServiceImpl) UpdateMemberWithNotification(ctx context.Context, r 
 			}
 			return getMember.AngkatanID
 		}(),
-		StatusKeanggotaan: newStatus,
+		StatusKeanggotaan: helper.ChooseString(memberRequest.StatusKeanggotaan, getMember.StatusKeanggotaan),
+		Role:              newRole,
 		JurusanID: func() sql.NullString {
 			if memberRequest.Jurusan != "" {
 				return sql.NullString{String: getJurusan.IdJurusan, Valid: true}
@@ -700,7 +708,7 @@ func (m *memberServiceImpl) Login(ctx context.Context, loginRequest dto.LoginReq
 		return "", http.StatusBadRequest, fmt.Errorf("invalid nra or password: %v", err)
 	}
 
-	token, err := helper.GenerateJWT(loginRequest.NRA, member.Nama, member.StatusKeanggotaan)
+	token, err := helper.GenerateJWT(loginRequest.NRA, member.Nama, member.Role)
 	if err != nil {
 		return "", http.StatusBadRequest, fmt.Errorf("failed to generate token: %v", err)
 	}
@@ -736,12 +744,12 @@ func (m *memberServiceImpl) LoginToken(ctx context.Context, r *http.Request) (st
 	}
 
 	// Generate JWT token
-	jwtToken, err := helper.GenerateJWT(member.NRA.String, member.Nama, member.StatusKeanggotaan)
+	jwtToken, err := helper.GenerateJWT(member.NRA.String, member.Nama, member.Role)
 	if err != nil {
 		return "", http.StatusBadRequest, fmt.Errorf("failed to generate token: %v", err)
 	}
 
-	// Hapus token dari database setelah berhasil login (token sekali pakai)
+	// Hapus token dari database setelah berhasil login (token sekali pakai)g
 	err = m.MemberRepo.UpdateMemberToken(ctx, tx, member.IdMember, "")
 	if err != nil {
 		return "", http.StatusInternalServerError, fmt.Errorf("failed to clear login token: %v", err)

@@ -36,9 +36,9 @@ func NewMemberRepository() MemberRepository {
 
 // AddMember implements MemberRepository.
 func (m memberRepositoryImpl) AddMember(ctx context.Context, tx *sql.Tx, member model.Member) (model.Member, error) {
-	queryMember := "INSERT INTO member (id_member, nra, nama, angkatan, status_keanggotaan, id_jurusan, tanggal_dikukuhkan, foto, login_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+	queryMember := "INSERT INTO member (id_member, nra, nama, angkatan, status_keanggotaan, role, id_jurusan, tanggal_dikukuhkan, foto, login_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
-	_, err := tx.ExecContext(ctx, queryMember, member.IdMember, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.JurusanID, member.TanggalDikukuhkan, member.Foto, member.LoginToken)
+	_, err := tx.ExecContext(ctx, queryMember, member.IdMember, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.Role, member.JurusanID, member.TanggalDikukuhkan, member.Foto, member.LoginToken)
 	if err != nil {
 		return member, err
 	}
@@ -48,9 +48,9 @@ func (m memberRepositoryImpl) AddMember(ctx context.Context, tx *sql.Tx, member 
 
 // UpdateMember implements MemberRepository.
 func (m *memberRepositoryImpl) UpdateMember(ctx context.Context, tx *sql.Tx, member model.Member) (model.Member, error) {
-	query := "UPDATE member SET nra = ?, nama = ?, angkatan = ?, status_keanggotaan = ?, id_jurusan = ?, tanggal_dikukuhkan = ?, email = ?, no_hp = ?, password = ?, foto = ? WHERE id_member = ?"
+	query := "UPDATE member SET nra = ?, nama = ?, angkatan = ?, status_keanggotaan = ?, role = ?, id_jurusan = ?, tanggal_dikukuhkan = ?, email = ?, no_hp = ?, password = ?, foto = ? WHERE id_member = ?"
 
-	_, err := tx.ExecContext(ctx, query, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.JurusanID, member.TanggalDikukuhkan, member.Email, member.NoHP, member.Password, member.Foto, member.IdMember)
+	_, err := tx.ExecContext(ctx, query, member.NRA, member.Nama, member.AngkatanID, member.StatusKeanggotaan, member.Role, member.JurusanID, member.TanggalDikukuhkan, member.Email, member.NoHP, member.Password, member.Foto, member.IdMember)
 	if err != nil {
 		return member, err
 	}
@@ -60,7 +60,7 @@ func (m *memberRepositoryImpl) UpdateMember(ctx context.Context, tx *sql.Tx, mem
 
 // GetAllMember implements MemberRepository.
 func (m *memberRepositoryImpl) GetAllMember(ctx context.Context, tx *sql.Tx) ([]model.Member, error) {
-	query := `SELECT m.id_member, m.nra, m.nama, a.nama_angkatan, m.status_keanggotaan, j.nama_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, m.foto, m.login_token FROM member m LEFT JOIN angkatan a ON m.angkatan = a.id_angkatan LEFT JOIN jurusan j ON m.id_jurusan = j.id_jurusan`
+	query := `SELECT m.id_member, m.nra, m.nama, a.nama_angkatan, m.status_keanggotaan, m.role, j.nama_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, m.foto, m.login_token FROM member m LEFT JOIN angkatan a ON m.angkatan = a.id_angkatan LEFT JOIN jurusan j ON m.id_jurusan = j.id_jurusan`
 
 	rows, err := tx.QueryContext(ctx, query)
 	if err != nil {
@@ -71,7 +71,7 @@ func (m *memberRepositoryImpl) GetAllMember(ctx context.Context, tx *sql.Tx) ([]
 	var members []model.Member
 	for rows.Next() {
 		var member model.Member
-		err = rows.Scan(&member.IdMember, &member.NRA, &member.Nama, &member.Angkatan.NamaAngkatan, &member.StatusKeanggotaan, &member.Jurusan.NamaJurusan, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken)
+		err = rows.Scan(&member.IdMember, &member.NRA, &member.Nama, &member.Angkatan.NamaAngkatan, &member.StatusKeanggotaan, &member.Role, &member.Jurusan.NamaJurusan, &member.TanggalDikukuhkan, &member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken)
 		if err != nil {
 			return []model.Member{}, err
 		}
@@ -87,7 +87,7 @@ func (m *memberRepositoryImpl) GetMemberByNRA(ctx context.Context, tx *sql.Tx, n
 	var member model.Member
 	query := `
 		SELECT 
-			m.id_member, m.nra, m.nama, m.angkatan, m.status_keanggotaan, 
+			m.id_member, m.nra, m.nama, m.angkatan, m.status_keanggotaan, m.role,
 			m.id_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, 
 			m.foto, m.login_token,
 			a.id_angkatan, a.nama_angkatan,
@@ -99,7 +99,7 @@ func (m *memberRepositoryImpl) GetMemberByNRA(ctx context.Context, tx *sql.Tx, n
 
 	err := tx.QueryRowContext(ctx, query, nra).Scan(
 		&member.IdMember, &member.NRA, &member.Nama, &member.AngkatanID,
-		&member.StatusKeanggotaan, &member.JurusanID, &member.TanggalDikukuhkan,
+		&member.StatusKeanggotaan, &member.Role, &member.JurusanID, &member.TanggalDikukuhkan,
 		&member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken,
 		&member.Angkatan.IdAngkatan, &member.Angkatan.NamaAngkatan,
 		&member.Jurusan.IdJurusan, &member.Jurusan.NamaJurusan,
@@ -116,7 +116,7 @@ func (m *memberRepositoryImpl) GetMemberByToken(ctx context.Context, tx *sql.Tx,
 	var member model.Member
 	query := `
 		SELECT 
-			m.id_member, m.nra, m.nama, m.angkatan, m.status_keanggotaan, 
+			m.id_member, m.nra, m.nama, m.angkatan, m.status_keanggotaan, m.role,
 			m.id_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, 
 			m.foto, m.login_token,
 			a.id_angkatan, a.nama_angkatan,
@@ -128,7 +128,7 @@ func (m *memberRepositoryImpl) GetMemberByToken(ctx context.Context, tx *sql.Tx,
 
 	err := tx.QueryRowContext(ctx, query, token).Scan(
 		&member.IdMember, &member.NRA, &member.Nama, &member.AngkatanID,
-		&member.StatusKeanggotaan, &member.JurusanID, &member.TanggalDikukuhkan,
+		&member.StatusKeanggotaan, &member.Role, &member.JurusanID, &member.TanggalDikukuhkan,
 		&member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken,
 		&member.Angkatan.IdAngkatan, &member.Angkatan.NamaAngkatan,
 		&member.Jurusan.IdJurusan, &member.Jurusan.NamaJurusan,
@@ -145,7 +145,7 @@ func (m *memberRepositoryImpl) GetMemberById(ctx context.Context, tx *sql.Tx, id
 	var member model.Member
 	query := `
 		SELECT 
-			m.id_member, m.nra, m.nama, m.angkatan, m.status_keanggotaan, 
+			m.id_member, m.nra, m.nama, m.angkatan, m.status_keanggotaan, m.role,
 			m.id_jurusan, m.tanggal_dikukuhkan, m.email, m.no_hp, m.password, 
 			m.foto, m.login_token,
 			a.id_angkatan, a.nama_angkatan,
@@ -157,7 +157,7 @@ func (m *memberRepositoryImpl) GetMemberById(ctx context.Context, tx *sql.Tx, id
 
 	err := tx.QueryRowContext(ctx, query, id).Scan(
 		&member.IdMember, &member.NRA, &member.Nama, &member.AngkatanID,
-		&member.StatusKeanggotaan, &member.JurusanID, &member.TanggalDikukuhkan,
+		&member.StatusKeanggotaan, &member.Role, &member.JurusanID, &member.TanggalDikukuhkan,
 		&member.Email, &member.NoHP, &member.Password, &member.Foto, &member.LoginToken,
 		&member.Angkatan.IdAngkatan, &member.Angkatan.NamaAngkatan,
 		&member.Jurusan.IdJurusan, &member.Jurusan.NamaJurusan,

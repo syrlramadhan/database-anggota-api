@@ -77,7 +77,7 @@ func (n *notificationControllerImpl) CreateStatusChangeRequest(w http.ResponseWr
 		return
 	}
 
-	helper.WriteJSONSuccess(w, response, "Status change request created successfully")
+	helper.WriteJSONSuccess(w, response, "Role change request created successfully")
 }
 
 func (n *notificationControllerImpl) AcceptStatusChangeRequest(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -90,7 +90,7 @@ func (n *notificationControllerImpl) AcceptStatusChangeRequest(w http.ResponseWr
 		return
 	}
 
-	helper.WriteJSONSuccess(w, response, "Status change request accepted successfully")
+	helper.WriteJSONSuccess(w, response, "Role change request accepted successfully")
 }
 
 func (n *notificationControllerImpl) RejectStatusChangeRequest(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
@@ -103,5 +103,5 @@ func (n *notificationControllerImpl) RejectStatusChangeRequest(w http.ResponseWr
 		return
 	}
 
-	helper.WriteJSONSuccess(w, response, "Status change request rejected successfully")
+	helper.WriteJSONSuccess(w, response, "Role change request rejected successfully")
 }

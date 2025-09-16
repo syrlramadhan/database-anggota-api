@@ -25,7 +25,7 @@ type NotificationService interface {
 	AcceptStatusChangeRequest(ctx context.Context, r *http.Request, requestID string) (dto.StatusChangeAcceptResponse, int, error)
 	RejectStatusChangeRequest(ctx context.Context, r *http.Request, requestID string) (dto.StatusChangeRejectResponse, int, error)
 
-	SendStatusChangeNotification(ctx context.Context, fromMemberID, targetMemberID, fromStatus, toStatus string) error
+	SendStatusChangeNotification(ctx context.Context, fromMemberID, targetMemberID, fromRole, toRole string) error
 }
 
 type notificationServiceImpl struct {
@@ -97,10 +97,10 @@ func (n *notificationServiceImpl) GetNotifications(ctx context.Context, r *http.
 			Pending:        notification.Pending,
 			CreatedAt:      notification.CreatedAt,
 			FromMember: dto.FromMemberDetails{
-				IdMember:          notification.FromMemberID,
-				Nama:              notification.FromMemberName,
-				NRA:               notification.FromMemberNRA,
-				StatusKeanggotaan: notification.FromMemberStatus,
+				IdMember: notification.FromMemberID,
+				Nama:     notification.FromMemberName,
+				NRA:      notification.FromMemberNRA,
+				Role:     notification.FromMemberRole,
 			},
 		}
 
@@ -250,8 +250,8 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 	}
 
 	// Validasi input
-	if request.TargetMemberID == "" || request.FromStatus == "" || request.ToStatus == "" {
-		return dto.StatusChangeResponse{}, http.StatusBadRequest, fmt.Errorf("target_member_id, from_status, and to_status are required")
+	if request.TargetMemberID == "" || request.FromRole == "" || request.ToRole == "" {
+		return dto.StatusChangeResponse{}, http.StatusBadRequest, fmt.Errorf("target_member_id, from_role, and to_role are required")
 	}
 
 	// Mulai transaksi database
@@ -267,9 +267,9 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 		return dto.StatusChangeResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get requester member: %v", err)
 	}
 
-	// Validasi permission - hanya BPH yang bisa request status change untuk sesama BPH
-	if requester.StatusKeanggotaan != "bph" {
-		return dto.StatusChangeResponse{}, http.StatusForbidden, fmt.Errorf("only BPH members can request status changes")
+	// Validasi permission - hanya BPH yang bisa request role change untuk sesama BPH
+	if requester.Role != "bph" {
+		return dto.StatusChangeResponse{}, http.StatusForbidden, fmt.Errorf("only BPH members can request role changes")
 	}
 
 	// Validasi target member exists
@@ -278,9 +278,9 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 		return dto.StatusChangeResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get target member: %v", err)
 	}
 
-	// Validasi status change rules - BPH only changes other BPH
-	if targetMember.StatusKeanggotaan != "bph" || request.FromStatus != "bph" {
-		return dto.StatusChangeResponse{}, http.StatusBadRequest, fmt.Errorf("status change requests only allowed for BPH members")
+	// Validasi role change rules - BPH only changes other BPH
+	if targetMember.Role != "bph" || request.FromRole != "bph" {
+		return dto.StatusChangeResponse{}, http.StatusBadRequest, fmt.Errorf("role change requests only allowed for BPH members")
 	}
 
 	// Buat notifikasi
@@ -289,9 +289,9 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 
 	// Metadata untuk request
 	metadata := map[string]interface{}{
-		"request_id":  requestID,
-		"from_status": request.FromStatus,
-		"to_status":   request.ToStatus,
+		"request_id": requestID,
+		"from_role":  request.FromRole,
+		"to_role":    request.ToRole,
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 
@@ -301,7 +301,7 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 		FromMemberID:   requester.IdMember,
 		Type:           "status_change_request",
 		Title:          "Status Change Request",
-		Message:        fmt.Sprintf("%s requests to change your status from %s to %s", requester.Nama, request.FromStatus, request.ToStatus),
+		Message:        fmt.Sprintf("%s requests to change your role from %s to %s", requester.Nama, request.FromRole, request.ToRole),
 		Metadata:       sql.NullString{String: string(metadataJSON), Valid: true},
 		Pending:        true,
 	}
@@ -317,8 +317,8 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 		NotificationID:      notificationID,
 		TargetMemberID:      request.TargetMemberID,
 		RequestedByMemberID: requester.IdMember,
-		FromStatus:          request.FromStatus,
-		ToStatus:            request.ToStatus,
+		FromRole:            request.FromRole,
+		ToRole:              request.ToRole,
 		Status:              "pending",
 	}
 
@@ -334,7 +334,7 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 	return dto.StatusChangeResponse{
 		RequestID:      requestID,
 		NotificationID: notificationID,
-		Message:        "Status change request sent successfully",
+		Message:        "Role change request sent successfully",
 	}, http.StatusOK, nil
 }
 
@@ -388,13 +388,14 @@ func (n *notificationServiceImpl) AcceptStatusChangeRequest(ctx context.Context,
 		return dto.StatusChangeAcceptResponse{}, http.StatusBadRequest, fmt.Errorf("request has already been processed")
 	}
 
-	// Update member status
+	// Update member role
 	memberToUpdate := model.Member{
 		IdMember:          member.IdMember,
 		NRA:               member.NRA,
 		Nama:              member.Nama,
 		AngkatanID:        member.AngkatanID,
-		StatusKeanggotaan: statusChangeReq.ToStatus, // Update status
+		StatusKeanggotaan: member.StatusKeanggotaan,
+		Role:              statusChangeReq.ToRole, // Update role
 		JurusanID:         member.JurusanID,
 		TanggalDikukuhkan: member.TanggalDikukuhkan,
 		Email:             member.Email,
@@ -425,8 +426,8 @@ func (n *notificationServiceImpl) AcceptStatusChangeRequest(ctx context.Context,
 	}
 
 	return dto.StatusChangeAcceptResponse{
-		Message:   "Status change accepted",
-		NewStatus: statusChangeReq.ToStatus,
+		Message: "Role change accepted",
+		NewRole: statusChangeReq.ToRole,
 	}, http.StatusOK, nil
 }
 
@@ -497,11 +498,11 @@ func (n *notificationServiceImpl) RejectStatusChangeRequest(ctx context.Context,
 	}
 
 	return dto.StatusChangeRejectResponse{
-		Message: "Status change rejected",
+		Message: "Role change rejected",
 	}, http.StatusOK, nil
 }
 
-func (n *notificationServiceImpl) SendStatusChangeNotification(ctx context.Context, fromMemberID, targetMemberID, fromStatus, toStatus string) error {
+func (n *notificationServiceImpl) SendStatusChangeNotification(ctx context.Context, fromMemberID, targetMemberID, fromRole, toRole string) error {
 	tx, err := n.DB.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to start transaction: %v", err)
@@ -520,9 +521,9 @@ func (n *notificationServiceImpl) SendStatusChangeNotification(ctx context.Conte
 
 	// Metadata untuk request
 	metadata := map[string]interface{}{
-		"request_id":  requestID,
-		"from_status": fromStatus,
-		"to_status":   toStatus,
+		"request_id": requestID,
+		"from_role":  fromRole,
+		"to_role":    toRole,
 	}
 	metadataJSON, _ := json.Marshal(metadata)
 
@@ -532,7 +533,7 @@ func (n *notificationServiceImpl) SendStatusChangeNotification(ctx context.Conte
 		FromMemberID:   fromMemberID,
 		Type:           "status_change_request",
 		Title:          "Status Change Request",
-		Message:        fmt.Sprintf("%s requests to change your status from %s to %s", requester.Nama, fromStatus, toStatus),
+		Message:        fmt.Sprintf("%s requests to change your role from %s to %s", requester.Nama, fromRole, toRole),
 		Metadata:       sql.NullString{String: string(metadataJSON), Valid: true},
 		Pending:        true,
 	}
@@ -548,8 +549,8 @@ func (n *notificationServiceImpl) SendStatusChangeNotification(ctx context.Conte
 		NotificationID:      notificationID,
 		TargetMemberID:      targetMemberID,
 		RequestedByMemberID: fromMemberID,
-		FromStatus:          fromStatus,
-		ToStatus:            toStatus,
+		FromRole:            fromRole,
+		ToRole:              toRole,
 		Status:              "pending",
 	}
 

@@ -11,7 +11,8 @@ type Member struct {
 	NRA               sql.NullString
 	Nama              string
 	AngkatanID        string
-	StatusKeanggotaan string
+	StatusKeanggotaan string // aktif/tidak_aktif
+	Role              string // anggota/bph/alb/dpo/bp
 	JurusanID         sql.NullString
 	TanggalDikukuhkan *util.CustomDate
 	JenisKelamin      sql.NullString

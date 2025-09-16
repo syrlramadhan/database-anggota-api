@@ -66,7 +66,7 @@ func (n *notificationRepositoryImpl) GetNotificationsByMemberId(ctx context.Cont
 		SELECT 
 			n.id_notification, n.target_member_id, n.from_member_id, n.type, n.title, n.message, 
 			n.metadata, n.read_at, n.pending, n.accepted, n.created_at, n.updated_at,
-			m.nama as from_member_name, m.nra as from_member_nra, m.status_keanggotaan as from_member_status
+			m.nama as from_member_name, m.nra as from_member_nra, m.role as from_member_role
 		FROM notifications n
 		LEFT JOIN member m ON n.from_member_id = m.id_member
 		WHERE n.target_member_id = ?
@@ -97,7 +97,7 @@ func (n *notificationRepositoryImpl) GetNotificationsByMemberId(ctx context.Cont
 			&notification.UpdatedAt,
 			&notification.FromMemberName,
 			&notification.FromMemberNRA,
-			&notification.FromMemberStatus,
+			&notification.FromMemberRole,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan notification: %v", err)
@@ -181,7 +181,7 @@ func (n *notificationRepositoryImpl) GetUnreadNotificationCount(ctx context.Cont
 
 func (n *notificationRepositoryImpl) CreateStatusChangeRequest(ctx context.Context, tx *sql.Tx, request model.StatusChangeRequest) (model.StatusChangeRequest, error) {
 	query := `
-		INSERT INTO status_change_requests (id_request, notification_id, target_member_id, requested_by_member_id, from_status, to_status, status, created_at)
+		INSERT INTO status_change_requests (id_request, notification_id, target_member_id, requested_by_member_id, from_role, to_role, status, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
 	`
 
@@ -190,8 +190,8 @@ func (n *notificationRepositoryImpl) CreateStatusChangeRequest(ctx context.Conte
 		request.NotificationID,
 		request.TargetMemberID,
 		request.RequestedByMemberID,
-		request.FromStatus,
-		request.ToStatus,
+		request.FromRole,
+		request.ToRole,
 		request.Status,
 	)
 
@@ -206,7 +206,7 @@ func (n *notificationRepositoryImpl) CreateStatusChangeRequest(ctx context.Conte
 func (n *notificationRepositoryImpl) GetStatusChangeRequestById(ctx context.Context, tx *sql.Tx, requestID string) (model.StatusChangeRequest, error) {
 	query := `
 		SELECT id_request, notification_id, target_member_id, requested_by_member_id, 
-			   from_status, to_status, status, processed_at, created_at
+			   from_role, to_role, status, processed_at, created_at
 		FROM status_change_requests 
 		WHERE id_request = ?
 	`
@@ -217,8 +217,8 @@ func (n *notificationRepositoryImpl) GetStatusChangeRequestById(ctx context.Cont
 		&request.NotificationID,
 		&request.TargetMemberID,
 		&request.RequestedByMemberID,
-		&request.FromStatus,
-		&request.ToStatus,
+		&request.FromRole,
+		&request.ToRole,
 		&request.Status,
 		&request.ProcessedAt,
 		&request.CreatedAt,
@@ -249,7 +249,7 @@ func (n *notificationRepositoryImpl) UpdateStatusChangeRequest(ctx context.Conte
 func (n *notificationRepositoryImpl) GetStatusChangeRequestByNotificationId(ctx context.Context, tx *sql.Tx, notificationID string) (model.StatusChangeRequest, error) {
 	query := `
 		SELECT id_request, notification_id, target_member_id, requested_by_member_id, 
-			   from_status, to_status, status, processed_at, created_at
+			   from_role, to_role, status, processed_at, created_at
 		FROM status_change_requests 
 		WHERE notification_id = ?
 	`
@@ -260,8 +260,8 @@ func (n *notificationRepositoryImpl) GetStatusChangeRequestByNotificationId(ctx 
 		&request.NotificationID,
 		&request.TargetMemberID,
 		&request.RequestedByMemberID,
-		&request.FromStatus,
-		&request.ToStatus,
+		&request.FromRole,
+		&request.ToRole,
 		&request.Status,
 		&request.ProcessedAt,
 		&request.CreatedAt,

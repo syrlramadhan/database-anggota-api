@@ -9,25 +9,25 @@ import (
 )
 
 type Claims struct {
-	NRA    string `json:"nra"`
-	Nama   string `json:"nama"`
-	Status string `json:"status"`
+	NRA  string `json:"nra"`
+	Nama string `json:"nama"`
+	Role string `json:"role"`
 	jwt.StandardClaims
 }
 
-func GenerateJWT(nra, nama, status string) (string, error) {
+func GenerateJWT(nra, nama, role string) (string, error) {
 	err := godotenv.Load()
 	if err != nil {
 		panic(err)
 	}
 
 	jwtKey := os.Getenv("JWT_SECRET")
-	expirationTime := time.Now().Add(5 * time.Minute)
+	expirationTime := time.Now().Add(5 * time.Hour)
 
 	claims := &Claims{
-		NRA:    nra,
-		Nama:   nama,
-		Status: status,
+		NRA:  nra,
+		Nama: nama,
+		Role: role,
 		StandardClaims: jwt.StandardClaims{
 			ExpiresAt: expirationTime.Unix(),
 		},

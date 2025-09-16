@@ -9,7 +9,8 @@ type MemberResponse struct {
 	NRA               string           `json:"nra"`
 	Nama              string           `json:"nama"`
 	Angkatan          string           `json:"angkatan"`
-	StatusKeanggotaan string           `json:"status_keanggotaan"`
+	StatusKeanggotaan string           `json:"status_keanggotaan"` // aktif/tidak_aktif
+	Role              string           `json:"role"`               // anggota/bph/alb/dpo/bp
 	Jurusan           string           `json:"jurusan"`
 	TanggalDikukuhkan *util.CustomDate `json:"tanggal_dikukuhkan"`
 	Email             string           `json:"email"`
@@ -24,7 +25,8 @@ type MemberCreateResponse struct {
 	NRA               string           `json:"nra"`
 	Nama              string           `json:"nama"`
 	Angkatan          string           `json:"angkatan"`
-	StatusKeanggotaan string           `json:"status_keanggotaan"`
+	StatusKeanggotaan string           `json:"status_keanggotaan"` // aktif/tidak_aktif
+	Role              string           `json:"role"`               // anggota/bph/alb/dpo/bp
 	Jurusan           string           `json:"jurusan"`
 	TanggalDikukuhkan *util.CustomDate `json:"tanggal_dikukuhkan"`
 	Foto              string           `json:"foto"`

@@ -17,10 +17,10 @@ type NotificationResponse struct {
 }
 
 type FromMemberDetails struct {
-	IdMember          string `json:"id_member"`
-	Nama              string `json:"nama"`
-	NRA               string `json:"nra"`
-	StatusKeanggotaan string `json:"status_keanggotaan"`
+	IdMember string `json:"id_member"`
+	Nama     string `json:"nama"`
+	NRA      string `json:"nra"`
+	Role     string `json:"role"` // anggota/bph/alb/dpo/bp
 }
 
 type UnreadCountResponse struct {
@@ -30,8 +30,8 @@ type UnreadCountResponse struct {
 // Status Change DTOs
 type StatusChangeRequestDTO struct {
 	TargetMemberID string `json:"target_member_id" validate:"required"`
-	FromStatus     string `json:"from_status" validate:"required"`
-	ToStatus       string `json:"to_status" validate:"required"`
+	FromRole       string `json:"from_role" validate:"required"`
+	ToRole         string `json:"to_role" validate:"required"`
 }
 
 type StatusChangeResponse struct {
@@ -41,8 +41,8 @@ type StatusChangeResponse struct {
 }
 
 type StatusChangeAcceptResponse struct {
-	Message   string `json:"message"`
-	NewStatus string `json:"new_status"`
+	Message string `json:"message"`
+	NewRole string `json:"new_role"`
 }
 
 type StatusChangeRejectResponse struct {

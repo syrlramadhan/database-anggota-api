@@ -25,8 +25,8 @@ type StatusChangeRequest struct {
 	NotificationID      string       `db:"notification_id"`
 	TargetMemberID      string       `db:"target_member_id"`
 	RequestedByMemberID string       `db:"requested_by_member_id"`
-	FromStatus          string       `db:"from_status"`
-	ToStatus            string       `db:"to_status"`
+	FromRole            string       `db:"from_role"`
+	ToRole              string       `db:"to_role"`
 	Status              string       `db:"status"`
 	ProcessedAt         sql.NullTime `db:"processed_at"`
 	CreatedAt           time.Time    `db:"created_at"`
@@ -35,7 +35,7 @@ type StatusChangeRequest struct {
 // For JOIN queries with member details
 type NotificationWithMember struct {
 	Notification
-	FromMemberName   string `db:"from_member_name"`
-	FromMemberNRA    string `db:"from_member_nra"`
-	FromMemberStatus string `db:"from_member_status"`
+	FromMemberName string `db:"from_member_name"`
+	FromMemberNRA  string `db:"from_member_nra"`
+	FromMemberRole string `db:"from_member_role"`
 }

@@ -28,7 +28,7 @@ CREATE TABLE `angkatan` (
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id_angkatan`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -52,7 +52,7 @@ CREATE TABLE `jurusan` (
   `id_jurusan` varchar(10) NOT NULL,
   `nama_jurusan` varchar(100) NOT NULL,
   PRIMARY KEY (`id_jurusan`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -77,7 +77,8 @@ CREATE TABLE `member` (
   `nra` varchar(10) DEFAULT NULL,
   `nama` varchar(100) NOT NULL,
   `angkatan` varchar(20) NOT NULL,
-  `status_keanggotaan` enum('anggota','bph','alb','dpo','bp') NOT NULL,
+  `status_keanggotaan` enum('aktif','tidak_aktif') NOT NULL DEFAULT 'aktif',
+  `role` enum('anggota','bph','alb','dpo','bp') NOT NULL DEFAULT 'anggota',
   `id_jurusan` varchar(10) DEFAULT NULL,
   `tanggal_dikukuhkan` varchar(15) DEFAULT NULL,
   `email` varchar(100) DEFAULT NULL,
@@ -95,7 +96,7 @@ CREATE TABLE `member` (
   KEY `id_jurusan` (`id_jurusan`),
   CONSTRAINT `member_ibfk_1` FOREIGN KEY (`angkatan`) REFERENCES `angkatan` (`id_angkatan`),
   CONSTRAINT `member_ibfk_2` FOREIGN KEY (`id_jurusan`) REFERENCES `jurusan` (`id_jurusan`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -104,7 +105,7 @@ CREATE TABLE `member` (
 
 LOCK TABLES `member` WRITE;
 /*!40000 ALTER TABLE `member` DISABLE KEYS */;
-INSERT INTO `member` VALUES ('0cac9a14-6f4c-4316-b1e8-2d26ca0c27a3','13.24.016','Musdalipa','013','anggota','J002','2025-09-02','musdalipa@gmail.com','0899999999','$2a$10$89V5pQUluNamZcEZ9J3Lg.bGuRwlX0CAhvhqLnom78XKCYfhrLZSu','13.24.016_Musdalipa.png',NULL,'2025-09-02 01:05:22','2025-09-02 01:07:15'),('0efe56f3-2142-49ef-ba19-4739adbba139','13.24.015','Muhammad Aksan','Angkatan 013','bph','J001','2025-08-28','aksan@gmail.com','0895806277260','$2a$10$A2gXAfG5KrptpnlmTM8YoO/mR/BoKCa3bNY4WfuaW6/QLSDj/s2yy','13.24.015_Muhammad Aksan.jpg',NULL,'2025-08-21 18:32:52','2025-09-02 18:53:14'),('56a8090d-36da-4e54-86f0-1599c37d0c49','13.24.005','Syahrul Ramadhann','Angkatan 013','dpo','J002','2025-08-28','syahrul@gmail.com','085371847801','$2a$10$mJaNda8cNP8CdkXyHXze3e2SYSoP/MarHzLvYA/9Y1c6gzB8ACdQ6','13.24.005_Syahrul Ramadhann.jpg',NULL,'2025-08-28 18:31:57','2025-09-02 18:55:34'),('a13e63ce-ae78-4e45-8a1e-a5a759c0acfe','14.25.001','Aseppp','014','bph','J001','2025-08-31','asepp@gmail.com','0895806277260','$2a$10$7flSY5kSvNNlcHPVJT3hWuHHC6nuGtjumnefcAySz3hk9CmSCIA5i','14.25.001_Aseppp.png',NULL,'2025-08-31 19:05:43','2025-09-02 18:53:26');
+INSERT INTO `member` VALUES ('0cac9a14-6f4c-4316-b1e8-2d26ca0c27a3','13.24.016','Musdalipa','013','aktif','anggota','J002','2025-09-02','musdalipa@gmail.com','0899999999','$2a$10$89V5pQUluNamZcEZ9J3Lg.bGuRwlX0CAhvhqLnom78XKCYfhrLZSu','13.24.016_Musdalipa.png',NULL,'2025-09-02 01:05:22','2025-09-02 01:07:15'),('0efe56f3-2142-49ef-ba19-4739adbba139','13.24.015','Muhammad Aksan','Angkatan 013','aktif','bph','J001','2025-08-28','aksan@gmail.com','0895806277260','$2a$10$A2gXAfG5KrptpnlmTM8YoO/mR/BoKCa3bNY4WfuaW6/QLSDj/s2yy','13.24.015_Muhammad Aksan.jpg',NULL,'2025-08-21 18:32:52','2025-09-02 18:53:14'),('56a8090d-36da-4e54-86f0-1599c37d0c49','13.24.005','Syahrul Ramadhann','Angkatan 013','aktif','dpo','J002','2025-08-28','syahrul@gmail.com','085371847801','$2a$10$mJaNda8cNP8CdkXyHXze3e2SYSoP/MarHzLvYA/9Y1c6gzB8ACdQ6','13.24.005_Syahrul Ramadhann.jpg',NULL,'2025-08-28 18:31:57','2025-09-02 18:55:34'),('a13e63ce-ae78-4e45-8a1e-a5a759c0acfe','14.25.001','Aseppp','014','aktif','bph','J001','2025-08-31','asepp@gmail.com','0895806277260','$2a$10$7flSY5kSvNNlcHPVJT3hWuHHC6nuGtjumnefcAySz3hk9CmSCIA5i','14.25.001_Aseppp.png',NULL,'2025-08-31 19:05:43','2025-09-02 18:53:26');
 /*!40000 ALTER TABLE `member` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -135,7 +136,7 @@ CREATE TABLE `notifications` (
   KEY `notifications_from_fk` (`from_member_id`),
   CONSTRAINT `notifications_from_fk` FOREIGN KEY (`from_member_id`) REFERENCES `member` (`id_member`) ON DELETE CASCADE,
   CONSTRAINT `notifications_target_fk` FOREIGN KEY (`target_member_id`) REFERENCES `member` (`id_member`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -144,7 +145,7 @@ CREATE TABLE `notifications` (
 
 LOCK TABLES `notifications` WRITE;
 /*!40000 ALTER TABLE `notifications` DISABLE KEYS */;
-INSERT INTO `notifications` VALUES ('29ac1a83-f654-42c1-afd7-b2022ead51de','56a8090d-36da-4e54-86f0-1599c37d0c49','0efe56f3-2142-49ef-ba19-4739adbba139','status_change_request','Status Change Request','Muhammad Aksan requests to change your status from bph to dpo','{\"to_status\": \"dpo\", \"request_id\": \"b3c1d84b-bc5f-429b-b0dc-b5b0fceb240c\", \"from_status\": \"bph\"}','2025-09-02 18:55:34',0,1,'2025-09-02 18:54:51','2025-09-02 18:55:34');
+INSERT INTO `notifications` VALUES ('29ac1a83-f654-42c1-afd7-b2022ead51de','56a8090d-36da-4e54-86f0-1599c37d0c49','0efe56f3-2142-49ef-ba19-4739adbba139','status_change_request','Status Change Request','Muhammad Aksan requests to change your role from bph to dpo','{\"to_role\": \"dpo\", \"request_id\": \"b3c1d84b-bc5f-429b-b0dc-b5b0fceb240c\", \"from_role\": \"bph\"}','2025-09-02 18:55:34',0,1,'2025-09-02 18:54:51','2025-09-02 18:55:34');
 /*!40000 ALTER TABLE `notifications` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -160,8 +161,8 @@ CREATE TABLE `status_change_requests` (
   `notification_id` varchar(36) NOT NULL,
   `target_member_id` varchar(36) NOT NULL,
   `requested_by_member_id` varchar(36) NOT NULL,
-  `from_status` enum('anggota','bph','alb','dpo','bp') NOT NULL,
-  `to_status` enum('anggota','bph','alb','dpo','bp') NOT NULL,
+  `from_role` enum('anggota','bph','alb','dpo','bp') NOT NULL,
+  `to_role` enum('anggota','bph','alb','dpo','bp') NOT NULL,
   `status` enum('pending','accepted','rejected') DEFAULT 'pending',
   `processed_at` datetime DEFAULT NULL,
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -172,7 +173,7 @@ CREATE TABLE `status_change_requests` (
   CONSTRAINT `status_requests_notification_fk` FOREIGN KEY (`notification_id`) REFERENCES `notifications` (`id_notification`) ON DELETE CASCADE,
   CONSTRAINT `status_requests_requester_fk` FOREIGN KEY (`requested_by_member_id`) REFERENCES `member` (`id_member`) ON DELETE CASCADE,
   CONSTRAINT `status_requests_target_fk` FOREIGN KEY (`target_member_id`) REFERENCES `member` (`id_member`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
