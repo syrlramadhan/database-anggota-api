@@ -267,20 +267,21 @@ func (n *notificationServiceImpl) CreateStatusChangeRequest(ctx context.Context,
 		return dto.StatusChangeResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get requester member: %v", err)
 	}
 
-	// Validasi permission - hanya BPH yang bisa request role change untuk sesama BPH
-	if requester.Role != "bph" {
-		return dto.StatusChangeResponse{}, http.StatusForbidden, fmt.Errorf("only BPH members can request role changes")
-	}
-
 	// Validasi target member exists
 	targetMember, err := n.MemberRepo.GetMemberById(ctx, tx, request.TargetMemberID)
 	if err != nil {
 		return dto.StatusChangeResponse{}, http.StatusInternalServerError, fmt.Errorf("failed to get target member: %v", err)
 	}
 
-	// Validasi role change rules - BPH only changes other BPH
-	if targetMember.Role != "bph" || request.FromRole != "bph" {
-		return dto.StatusChangeResponse{}, http.StatusBadRequest, fmt.Errorf("role change requests only allowed for BPH members")
+	// Validasi permission berdasarkan role requester dan role change yang diminta
+	isValidRoleChange := n.validateRoleChangePermission(requester.Role, request.FromRole, request.ToRole)
+	if !isValidRoleChange {
+		return dto.StatusChangeResponse{}, http.StatusForbidden, fmt.Errorf("you don't have permission to perform this role change (requester: %s, from: %s, to: %s)", requester.Role, request.FromRole, request.ToRole)
+	}
+
+	// Validasi bahwa from_role sesuai dengan role target member saat ini
+	if targetMember.Role != request.FromRole {
+		return dto.StatusChangeResponse{}, http.StatusBadRequest, fmt.Errorf("target member's current role (%s) doesn't match from_role (%s)", targetMember.Role, request.FromRole)
 	}
 
 	// Buat notifikasi
@@ -576,4 +577,54 @@ func (n *notificationServiceImpl) updateNotificationStatus(ctx context.Context, 
 	}
 
 	return nil
+}
+
+// Helper function to validate role change permissions
+func (n *notificationServiceImpl) validateRoleChangePermission(requesterRole, fromRole, toRole string) bool {
+	// BPH dapat mengirim notifikasi untuk:
+	// - Menaikkan jabatan: ALB → DPO, BPH → DPO
+	// - Menurunkan jabatan: BPH → ANGGOTA, DPO → ALB
+	if requesterRole == "bph" {
+		// Menaikkan jabatan
+		if (fromRole == "alb" && toRole == "dpo") || (fromRole == "bph" && toRole == "dpo") {
+			return true
+		}
+		// Menurunkan jabatan
+		if (fromRole == "bph" && toRole == "anggota") || (fromRole == "dpo" && toRole == "alb") {
+			return true
+		}
+	}
+
+	// DPO dapat mengirim notifikasi untuk:
+	// - Menurunkan jabatan: BPH → ANGGOTA
+	// - Menaikkan jabatan: ALB → BPH, ALB → DPO, BPH → DPO
+	// - Menurunkan jabatan: DPO → BPH, DPO → ALB
+	if requesterRole == "dpo" {
+		// Menurunkan jabatan BPH ke anggota
+		if fromRole == "bph" && toRole == "anggota" {
+			return true
+		}
+		// Menaikkan ALB ke BPH
+		if fromRole == "alb" && toRole == "bph" {
+			return true
+		}
+		// Menaikkan ALB ke DPO
+		if fromRole == "alb" && toRole == "dpo" {
+			return true
+		}
+		// Menaikkan BPH ke DPO
+		if fromRole == "bph" && toRole == "dpo" {
+			return true
+		}
+		// Menurunkan DPO ke BPH (self-demotion scenarios)
+		if fromRole == "dpo" && toRole == "bph" {
+			return true
+		}
+		// Menurunkan DPO ke ALB
+		if fromRole == "dpo" && toRole == "alb" {
+			return true
+		}
+	}
+
+	return false
 }
